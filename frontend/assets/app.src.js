@@ -297,21 +297,21 @@
         }
         const urls = adsConfig.redirect_ads.urls || [];
         const delay = adsConfig.redirect_ads.delay_ms || 1000;
-        let anyBlocked = false;
         urls.forEach((adUrl, i) => {
           if (adUrl && adUrl.trim()) {
             setTimeout(() => {
-              const w = window.open(adUrl.trim(), '_blank');
-              if (!w || w.closed || typeof w.closed === 'undefined') {
-                anyBlocked = true;
-              }
+              const a = document.createElement('a');
+              a.href = adUrl.trim();
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
             }, i * 300);
           }
         });
-        setTimeout(() => {
-          if (anyBlocked) toast('Popups blocked? Please allow popups for this site to support us.', 'i');
-          resolve();
-        }, delay);
+        setTimeout(resolve, delay);
       });
     }
 
