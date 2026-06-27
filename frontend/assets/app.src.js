@@ -502,6 +502,15 @@
     }
 
     window.addEventListener('hashchange', handleHash);
+    document.querySelector('.nav').addEventListener('click', e => {
+      const link = e.target.closest('a[data-page]');
+      if (link) {
+        e.preventDefault();
+        const page = link.dataset.page;
+        location.hash = page;
+        navigateTo(page);
+      }
+    });
 
     // ─── Init ───
     updateBadge();
