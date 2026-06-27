@@ -35,6 +35,7 @@ import {
   Clock,
   HardDrive,
   Activity,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1451,9 +1452,14 @@ function CookiesPage({ authHeaders, onError }: {
             </div>
           </div>
         </div>
-        <Button onClick={clearAll} variant="outline" className="border-red-400/30 text-red-400 hover:bg-red-400/10">
-          <X className="h-4 w-4 mr-2" /> Clear All
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => fetchCookies(page)} variant="outline" className="border-border/50">
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button onClick={clearAll} variant="outline" className="border-red-400/30 text-red-400 hover:bg-red-400/10">
+            <X className="h-4 w-4 mr-2" /> Clear All
+          </Button>
+        </div>
       </div>
 
       {loading ? (
