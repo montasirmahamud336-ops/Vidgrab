@@ -500,8 +500,8 @@
       document.querySelector('.orb-1').style.background = `radial-gradient(circle,${info.orb1},transparent 70%)`;
       document.querySelector('.orb-2').style.background = `radial-gradient(circle,${info.orb2},transparent 70%)`;
 
-      document.querySelectorAll('#platIcs > .plat-ic').forEach(el => el.style.display = 'none');
-      if (info.plat) $(info.plat).style.display = 'flex';
+      document.querySelectorAll('.plat-ic').forEach(el => el.classList.remove('on'));
+      if (info.plat) $(info.plat).classList.add('on');
     }
 
     function handleHash() {
