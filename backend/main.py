@@ -650,10 +650,10 @@ if os.path.isdir(OUT_DIR) and os.path.isfile(os.path.join(OUT_DIR, "index.html")
     app.mount("/_next", StaticFiles(directory=os.path.join(OUT_DIR, "_next")), name="admin_next")
     app.mount("/admin", StaticFiles(directory=OUT_DIR, html=True), name="admin")
 
-    # Redirect /admin -> /admin/ (trailing slash required by StaticFiles)
-    @app.get("/admin", include_in_schema=False)
-    def admin_root():
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/admin/")
+# Redirect /admin -> /admin/ (trailing slash required by StaticFiles)
+@app.get("/admin", include_in_schema=False)
+def admin_root():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/")
 
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
