@@ -478,50 +478,7 @@
       return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
     }
 
-    // ─── Multi-page Routing ───
-    const PAGES = {
-      home:    { title: 'VidGrab Video Downloader',   desc: 'Paste a link, preview the video, and download directly in your browser.',                    bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
-      youtube: { title: 'YouTube Video Downloader',   desc: 'Download any YouTube video in HD quality. Paste the link and start downloading.',            bg: '#0f0808', acc: '#ff4444', orb1: 'rgba(255,0,0,.25)', orb2: 'rgba(255,0,0,.15)', plat: 'platYoutube' },
-      facebook:{ title: 'Facebook Video Downloader',  desc: 'Download Facebook videos in high quality. Paste a Facebook video link to get started.',     bg: '#081018', acc: '#1877f2', orb1: 'rgba(24,119,242,.25)', orb2: 'rgba(24,119,242,.15)', plat: 'platFacebook' },
-      instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.',          bg: '#0f0808', acc: '#e1306c', orb1: 'rgba(225,48,108,.25)', orb2: 'rgba(188,42,141,.18)', plat: 'platInstagram' },
-      tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.',           bg: '#050505', acc: '#00f2ea', orb1: 'rgba(0,242,234,.2)', orb2: 'rgba(255,0,80,.2)', plat: 'platTiktok' },
-      others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.',              bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
-    };
-
-    function navigateTo(page) {
-      document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
-      const info = PAGES[page] || PAGES.home;
-      document.title = info.title + ' — VidGrab';
-      $('heroTitle').textContent = info.title;
-      $('heroDesc').textContent = info.desc;
-
-      document.documentElement.style.setProperty('--bg', info.bg);
-      document.documentElement.style.setProperty('--acc', info.acc);
-      document.querySelector('.orb-1').style.background = `radial-gradient(circle,${info.orb1},transparent 70%)`;
-      document.querySelector('.orb-2').style.background = `radial-gradient(circle,${info.orb2},transparent 70%)`;
-
-      document.querySelectorAll('.plat-ic').forEach(el => el.classList.remove('on'));
-      if (info.plat) $(info.plat).classList.add('on');
-    }
-
-    function handleHash() {
-      const page = location.hash.replace('#', '') || 'home';
-      navigateTo(PAGES[page] ? page : 'home');
-    }
-
-    window.addEventListener('hashchange', handleHash);
-    document.querySelector('.nav').addEventListener('click', e => {
-      const link = e.target.closest('a[data-page]');
-      if (link) {
-        e.preventDefault();
-        const page = link.dataset.page;
-        location.hash = page;
-        navigateTo(page);
-      }
-    });
-
     // ─── Init ───
     updateBadge();
     loadAds();
     consumePendingSharedText();
-    handleHash();
