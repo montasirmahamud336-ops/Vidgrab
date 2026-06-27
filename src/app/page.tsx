@@ -754,20 +754,22 @@ function DashboardPage({ stats, backendConnected, onRefresh }: { stats: Download
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-3 h-48">
+            <div className="flex items-end gap-3 h-40">
               {stats.dailyStats.map((d, i) => (
-                <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
+                <div key={d.day} className="flex-1 flex flex-col items-center self-stretch">
                   <span className="text-[10px] font-medium text-muted-foreground">{d.downloads}</span>
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${(d.downloads / maxDaily) * 100}%` }}
-                    transition={{ delay: i * 0.08, duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-                    className="w-full rounded-t-lg bg-gradient-to-t from-sky-400/20 to-sky-400/60 min-h-[4px] relative group cursor-pointer hover:from-sky-400/30 hover:to-sky-400/80 transition-all"
-                  >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-card border border-border/50 rounded-md px-2 py-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
-                      {d.downloads} downloads
-                    </div>
-                  </motion.div>
+                  <div className="flex-1 w-full flex flex-col justify-end min-h-0">
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${(d.downloads / maxDaily) * 100}%` }}
+                      transition={{ delay: i * 0.08, duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+                      className="w-full rounded-t-lg bg-gradient-to-t from-sky-400/20 to-sky-400/60 min-h-[3px] relative group cursor-pointer hover:from-sky-400/30 hover:to-sky-400/80 transition-all"
+                    >
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-card border border-border/50 rounded-md px-2 py-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+                        {d.downloads} downloads
+                      </div>
+                    </motion.div>
+                  </div>
                   <span className="text-[10px] font-medium text-muted-foreground">{d.day}</span>
                 </div>
               ))}
