@@ -29,6 +29,7 @@ else:
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 ADS_CONFIG_PATH = os.environ.get("VIDGRAB_ADS_CONFIG") or os.path.join(BASE_DIR, "ads_config.json")
 DOWNLOAD_LOG_PATH = os.environ.get("VIDGRAB_DOWNLOAD_LOG") or os.path.join(BASE_DIR, "downloads_log.json")
+DAILY_FREE_LOG_PATH = os.path.join(BASE_DIR, "daily_free_log.json")
 
 app = FastAPI()
 security = HTTPBasic()
@@ -58,7 +59,9 @@ DEFAULT_ADS_CONFIG = {
     "redirect_ads": {
         "enabled": False,
         "urls": [],
-        "delay_ms": 1000
+        "delay_ms": 1000,
+        "redirects_before_download": 3,
+        "daily_free_download": true
     },
     "side_banner_left": {
         "enabled": False,
@@ -137,6 +140,20 @@ def save_download_log(log: list):
     """Save download history to JSON file."""
     with open(DOWNLOAD_LOG_PATH, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2, ensure_ascii=False)
+
+
+def load_daily_free_log() -> dict:
+    if not os.path.exists(DAILY_FREE_LOG_PATH):
+        return {}
+    try:
+        with open(DAILY_FREE_LOG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_daily_free_log(log: dict):
+    with open(DAILY_FREE_LOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(log, f, indent=2)
 
 
 def get_file_size_bytes(path: str) -> int | None:
@@ -417,6 +434,12 @@ def download_video_file(
         # ── Track this download ──
         file_size = get_file_size_bytes(downloaded_file)
         log_download(url=url, title=safe_title, quality=quality, file_size=file_size, client_ip=client_ip)
+        ads_cfg = load_ads_config().get("redirect_ads", {})
+        if ads_cfg.get("daily_free_download", False):
+            free_log = load_daily_free_log()
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            free_log[client_ip] = today
+            save_daily_free_log(free_log)
 
         ext = os.path.splitext(downloaded_file)[1]
         final_filename = f"{safe_title}{ext}"
@@ -463,6 +486,17 @@ def admin_update_config(
         config["side_banner_right"] = update.side_banner_right
     save_ads_config(config)
     return {"status": "saved"}
+
+
+@app.get("/api/admin/free-status")
+def free_download_status(req: Request):
+    client_ip = get_client_ip(req)
+    log = load_daily_free_log()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    used = log.get(client_ip) == today
+    config = load_ads_config()
+    enabled = config.get("redirect_ads", {}).get("daily_free_download", False)
+    return {"free_available": enabled and not used}
 
 
 # ── Download Stats API (NEW) ────────────────────────────────────────────────

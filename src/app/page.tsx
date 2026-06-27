@@ -57,6 +57,8 @@ interface RedirectAds {
   enabled: boolean;
   delay_ms: number;
   urls: string[];
+  redirects_before_download: number;
+  daily_free_download: boolean;
 }
 
 interface AdsConfig {
@@ -487,9 +489,11 @@ export default function AdminPanel() {
           enabled={config.redirect_ads.enabled}
           delay={config.redirect_ads.delay_ms}
           urls={config.redirect_ads.urls}
-          onSave={(enabled, delay_ms, urls) => {
-            setConfig(prev => prev ? { ...prev, redirect_ads: { enabled, delay_ms, urls } } : prev);
-            saveConfig("Redirect Ads", { redirect_ads: { enabled, delay_ms, urls } });
+          redirectsBefore={config.redirect_ads.redirects_before_download}
+          dailyFree={config.redirect_ads.daily_free_download}
+          onSave={(enabled, delay_ms, urls, redirects_before_download, daily_free_download) => {
+            setConfig(prev => prev ? { ...prev, redirect_ads: { enabled, delay_ms, urls, redirects_before_download, daily_free_download } } : prev);
+            saveConfig("Redirect Ads", { redirect_ads: { enabled, delay_ms, urls, redirects_before_download, daily_free_download } });
           }}
         />;
       case "side-banners":
@@ -991,14 +995,17 @@ function BannerPage({
 
 // ─── Redirect Ads Page ───────────────────────────────────
 function RedirectAdsPage({
-  enabled, delay, urls, onSave,
+  enabled, delay, urls, redirectsBefore, dailyFree, onSave,
 }: {
   enabled: boolean; delay: number; urls: string[];
-  onSave: (enabled: boolean, delay_ms: number, urls: string[]) => void;
+  redirectsBefore: number; dailyFree: boolean;
+  onSave: (enabled: boolean, delay_ms: number, urls: string[], redirects_before_download: number, daily_free_download: boolean) => void;
 }) {
   const [isEnabled, setIsEnabled] = useState(enabled);
   const [delayMs, setDelayMs] = useState(delay);
   const [urlList, setUrlList] = useState<string[]>(urls.length ? urls : ["", ""]);
+  const [redirectCount, setRedirectCount] = useState(redirectsBefore);
+  const [dailyFreeEnabled, setDailyFreeEnabled] = useState(dailyFree);
 
   const addUrl = () => setUrlList([...urlList, ""]);
   const removeUrl = (i: number) => setUrlList(urlList.filter((_, idx) => idx !== i));
@@ -1116,9 +1123,48 @@ function RedirectAdsPage({
             </div>
           </div>
 
+          {/* Redirects Before Download */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Redirects Before Download</p>
+                <p className="text-xs text-muted-foreground mt-0.5">How many redirect ads user must visit before download starts</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  value={redirectCount}
+                  onChange={(e) => setRedirectCount(parseInt(e.target.value) || 3)}
+                  min={1}
+                  max={50}
+                  className="w-28 bg-background/50 border-border/50 focus:border-violet-400/50 focus:ring-violet-400/20 h-11 rounded-xl text-sm text-center"
+                />
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">ads</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Free Download */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/30">
+            <div className="flex items-center gap-3">
+              <div className={`w-2.5 h-2.5 rounded-full ${dailyFreeEnabled ? "bg-green-400 shadow-lg shadow-green-400/30" : "bg-muted-foreground/30"}`} />
+              <div>
+                <p className="text-sm font-medium">Daily Free Download</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {dailyFreeEnabled ? "Users get 1 free download per day without ads" : "Ads required for every download"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={dailyFreeEnabled}
+              onCheckedChange={setDailyFreeEnabled}
+              className="data-[state=checked]:bg-violet-400"
+            />
+          </div>
+
           {/* Save */}
           <Button
-            onClick={() => onSave(isEnabled, delayMs, urlList.filter(u => u.trim()))}
+            onClick={() => onSave(isEnabled, delayMs, urlList.filter(u => u.trim()), redirectCount, dailyFreeEnabled)}
             className="w-full h-11 bg-gradient-to-r from-violet-400 to-violet-500 hover:from-violet-500 hover:to-violet-600 text-white font-semibold text-sm shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all duration-300 hover:-translate-y-0.5"
           >
             <Save className="h-4 w-4 mr-2" />

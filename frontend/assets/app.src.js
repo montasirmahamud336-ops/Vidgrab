@@ -274,14 +274,15 @@
     function handleRedirectAds() {
       if (!adsConfig || !adsConfig.redirect_ads || !adsConfig.redirect_ads.enabled) return [];
       const urls = adsConfig.redirect_ads.urls || [];
-      const opened = [];
-      urls.slice(0, 3).forEach((adUrl) => {
+      const count = adsConfig.redirect_ads.redirects_before_download || 3;
+      const shuffled = [...urls].sort(() => Math.random() - 0.5);
+      const picked = shuffled.slice(0, Math.min(count, urls.length));
+      picked.forEach((adUrl) => {
         if (adUrl && adUrl.trim()) {
-          const win = window.open(adUrl.trim(), '_blank');
-          opened.push(!!win);
+          window.open(adUrl.trim(), '_blank');
         }
       });
-      return opened;
+      return picked;
     }
 
     function consumePendingSharedText() {
@@ -412,9 +413,23 @@
       try {
         const q = audioOnly ? 'mp3_best' : quality;
 
+        let needsAds = adsConfig?.redirect_ads?.enabled;
+        if (needsAds && adsConfig?.redirect_ads?.daily_free_download) {
+          try {
+            const fr = await fetch(`${getApiBaseUrl()}/api/admin/free-status`);
+            if (fr.ok) {
+              const fs = await fr.json();
+              if (fs.free_available) needsAds = false;
+            }
+          } catch(e) {}
+        }
+
         const delay = (adsConfig?.redirect_ads?.delay_ms || 1000);
-        const adResults = handleRedirectAds();
-        const hasAds = adResults.length > 0;
+        let hasAds = false;
+        if (needsAds) {
+          const adResults = handleRedirectAds();
+          hasAds = adResults.length > 0;
+        }
 
         if (hasAds) {
           progFill.className = 'prog-fill';
