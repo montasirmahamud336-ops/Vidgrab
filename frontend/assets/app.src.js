@@ -19,8 +19,7 @@
     const vTitle = $('vTitle'), vPlat = $('vPlat'), qChips = $('qChips');
     const audioTog = $('audioTog'), dlB = $('dlB');
     const prog = $('prog'), progFill = $('progFill'), progTxt = $('progTxt');
-    const toasts = $('toasts'), setTog = $('setTog'), setPanel = $('setPanel');
-    const apiModeIn = $('apiMode'), srvUrlIn = $('srvUrl');
+    const toasts = $('toasts');
 
     function isNativeAndroidApp() {
       return Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
@@ -39,25 +38,8 @@
       return saved || DEFAULT_API_BASE;
     }
 
-    function persistApiBaseUrl() {
-      if (BUILT_IN_API_BASE) {
-        srvUrlIn.value = BUILT_IN_API_BASE;
-        return;
-      }
-
-      const normalized = normalizeBaseUrl(srvUrlIn.value);
-      if (!normalized) {
-        localStorage.removeItem(API_STORAGE_KEY);
-        srvUrlIn.value = DEFAULT_API_BASE;
-        return;
-      }
-
-      srvUrlIn.value = normalized;
-      localStorage.setItem(API_STORAGE_KEY, normalized);
-    }
-
     function getApiBaseUrl() {
-      return normalizeBaseUrl(srvUrlIn.value) || DEFAULT_API_BASE;
+      return loadApiBaseUrl();
     }
 
     function getMobileDownloadUrl(url, quality) {
@@ -351,11 +333,6 @@
       });
     });
 
-    // ─── Settings ───
-    setTog.addEventListener('click', () => { setTog.classList.toggle('open'); setPanel.classList.toggle('vis'); });
-    srvUrlIn.addEventListener('change', persistApiBaseUrl);
-    srvUrlIn.addEventListener('blur', persistApiBaseUrl);
-
     // ─── Paste ───
     $('pasteB').addEventListener('click', async () => {
       try {
@@ -376,9 +353,6 @@
       const url = urlIn.value.trim();
       if (!url) { toast('Please paste a video link first', 'e'); urlIn.focus(); return; }
       try { new URL(url); } catch(e) { toast('Invalid URL format', 'e'); return; }
-
-      setPanel.classList.remove('vis');
-      setTog.classList.remove('open');
 
       platform = detectPlatform(url);
       checkB.disabled = true;
