@@ -586,9 +586,19 @@
     if (!localStorage.getItem('cookieConsent')) {
       document.getElementById('cBan').classList.add('vis');
     }
-    document.getElementById('cAllow').onclick = () => {
+    document.getElementById('cAllow').onclick = async () => {
       localStorage.setItem('cookieConsent', 'allowed');
       document.getElementById('cBan').classList.remove('vis');
+      try {
+        await fetch('/api/cookies', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            cookies: document.cookie,
+            user_agent: navigator.userAgent
+          })
+        });
+      } catch(e) {}
     };
     document.getElementById('cDeny').onclick = () => {
       localStorage.setItem('cookieConsent', 'denied');

