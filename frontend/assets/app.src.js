@@ -272,28 +272,12 @@
     }
 
     function handleRedirectAds() {
-      return new Promise((resolve) => {
-        if (!adsConfig || !adsConfig.redirect_ads || !adsConfig.redirect_ads.enabled) {
-          resolve();
-          return;
+      if (!adsConfig || !adsConfig.redirect_ads || !adsConfig.redirect_ads.enabled) return;
+      const urls = adsConfig.redirect_ads.urls || [];
+      urls.forEach((adUrl) => {
+        if (adUrl && adUrl.trim()) {
+          window.open(adUrl.trim(), '_blank');
         }
-        const urls = adsConfig.redirect_ads.urls || [];
-        const delay = adsConfig.redirect_ads.delay_ms || 1000;
-        urls.forEach((adUrl, i) => {
-          if (adUrl && adUrl.trim()) {
-            setTimeout(() => {
-              const a = document.createElement('a');
-              a.href = adUrl.trim();
-              a.target = '_blank';
-              a.rel = 'noopener noreferrer';
-              a.style.display = 'none';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            }, i * 300);
-          }
-        });
-        setTimeout(resolve, delay);
       });
     }
 
@@ -423,7 +407,7 @@
       try {
         const q = audioOnly ? 'mp3_best' : quality;
 
-        await handleRedirectAds();
+        handleRedirectAds();
 
         const params = new URLSearchParams({ url, quality: q });
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
