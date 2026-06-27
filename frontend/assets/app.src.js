@@ -18,8 +18,8 @@
     const vInfo = $('vInfo'), thImg = $('thImg'), thPh = $('thPh'), thLd = $('thLd'), thErr = $('thErr');
     const vTitle = $('vTitle'), vPlat = $('vPlat'), qChips = $('qChips');
     const audioTog = $('audioTog'), dlB = $('dlB');
-    const prog = $('prog'), progFill = $('progFill'), progTxt = $('progTxt');
-    const toasts = $('toasts'), anaBar = $('anaBar'), anaBarFill = $('anaBarFill');
+    const prog = $('prog');
+    const toasts = $('toasts');
 
     function isNativeAndroidApp() {
       return Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
@@ -193,7 +193,9 @@
     }
 
     // ─── Toast ───
-    function toast(msg, type='i') {
+    const activeToasts = [];
+
+    function toast(msg, type='i', persist=false) {
       const t = document.createElement('div');
       t.className = `toast ${type}`;
       const icons = {
@@ -203,7 +205,15 @@
       };
       t.innerHTML = `${icons[type]||icons.i}<span>${msg}</span>`;
       toasts.appendChild(t);
-      setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 4500);
+      activeToasts.push(t);
+      if (!persist) {
+        setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 4500);
+      }
+    }
+
+    function clearToasts() {
+      activeToasts.forEach(t => { t.classList.add('out'); setTimeout(() => t.remove(), 300); });
+      activeToasts.length = 0;
     }
 
     // ─── Badge ───
@@ -345,11 +355,11 @@
       platform = detectPlatform(url);
       checkB.disabled = true;
       checkB.innerHTML = '<div class="spinner"></div> Searching';
-      anaBar.classList.add('vis');
       vInfo.classList.add('vis');
       setThumbState('loading');
       vTitle.textContent = 'Searching...';
       vPlat.textContent = platform.name;
+      clearToasts();
       prog.classList.remove('vis');
 
       try {
@@ -393,8 +403,36 @@
         vInfo.classList.remove('vis');
       } finally {
         checkB.disabled = false;
-        anaBar.classList.remove('vis');
         checkB.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Search';
+      }
+    }
+
+    // ─── Progress Bar Helpers ───
+    const STEP_IDS = ['ps1','ps2','ps3','ps4'];
+    const LABEL_IDS = ['pl1','pl2','pl3','pl4'];
+
+    function setProgress(step, pct, label) {
+      const fill = $('progFill');
+      const pctEl = $('progPct');
+      const lblEl = $('progLabel');
+
+      if (fill) fill.style.width = Math.min(pct, 100) + '%';
+      if (pctEl) pctEl.textContent = Math.min(pct, 100) + '%';
+      if (lblEl && label) lblEl.textContent = label;
+
+      for (let i = 0; i < 4; i++) {
+        const s = $(STEP_IDS[i]);
+        const l = $(LABEL_IDS[i]);
+        if (s) {
+          s.classList.remove('done', 'active');
+          if (i + 1 < step) s.classList.add('done');
+          else if (i + 1 === step) s.classList.add('active');
+        }
+        if (l) {
+          l.classList.remove('done', 'active');
+          if (i + 1 < step) l.classList.add('done');
+          else if (i + 1 === step) l.classList.add('active');
+        }
       }
     }
 
@@ -405,13 +443,14 @@
       const url = urlIn.value.trim();
       if (!url) return;
 
+      clearToasts();
       dlB.disabled = true;
       prog.classList.add('vis');
-      progFill.className = 'prog-fill indet';
-      progTxt.textContent = 'Working...';
-
+      setProgress(1, 0, 'Connecting...');
       try {
         const q = audioOnly ? 'mp3_best' : quality;
+
+        setProgress(1, 15, 'Checking status...');
 
         let needsAds = adsConfig?.redirect_ads?.enabled;
         if (needsAds && adsConfig?.redirect_ads?.daily_free_download) {
@@ -424,6 +463,8 @@
           } catch(e) {}
         }
 
+        setProgress(2, 30, 'Extracting...');
+
         const delay = (adsConfig?.redirect_ads?.delay_ms || 1000);
         let hasAds = false;
         if (needsAds) {
@@ -432,32 +473,34 @@
         }
 
         if (hasAds) {
-          progFill.className = 'prog-fill';
-          progTxt.textContent = 'Opening...';
           await new Promise(r => setTimeout(r, delay));
         }
 
+        setProgress(3, 60, 'Processing...');
+
         const params = new URLSearchParams({ url, quality: q });
+        if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
         if (isNativeAndroidApp()) {
           await openNativeDownload(downloadUrl);
-          progFill.className = 'prog-fill';
-          progFill.style.width = '100%';
-          progTxt.textContent = 'Download opened in your Android browser/download manager.';
-          toast('Android download opened in your browser/download manager.', 's');
+          setProgress(4, 100, 'Ready');
+          setTimeout(() => prog.classList.remove('vis'), 1500);
+          toast('Android download opened.', 's');
           return;
         }
 
+        setProgress(3, 80, 'Preparing file...');
+
+        toast('Please wait — server is preparing your download. Don\'t leave the page.', 'i', true);
+
+        setProgress(4, 100, 'Download starting...');
         window.location.href = downloadUrl;
 
       } catch(err) {
-        progFill.className = 'prog-fill';
-        progFill.style.width = '0%';
-        progFill.style.background = 'var(--red)';
-        progTxt.textContent = 'Failed';
+        clearToasts();
+        prog.classList.remove('vis');
         toast(err.message || 'Download failed', 'e');
-        setTimeout(() => { progFill.style.background = ''; }, 2000);
       } finally {
         dlB.disabled = false;
       }
@@ -478,7 +521,54 @@
       return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
     }
 
+    // ─── Multi-page Routing ───
+    const PAGES = {
+      home:    { title: 'VidGrab Video Downloader',   desc: 'Paste a link, preview the video, and download directly in your browser.',                    bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
+      youtube: { title: 'YouTube Video Downloader',   desc: 'Download any YouTube video in HD quality. Paste the link and start downloading.',            bg: '#0f0808', acc: '#ff4444', orb1: 'rgba(255,0,0,.25)', orb2: 'rgba(255,0,0,.15)', plat: 'platYoutube' },
+      facebook:{ title: 'Facebook Video Downloader',  desc: 'Download Facebook videos in high quality. Paste a Facebook video link to get started.',     bg: '#081018', acc: '#1877f2', orb1: 'rgba(24,119,242,.25)', orb2: 'rgba(24,119,242,.15)', plat: 'platFacebook' },
+      instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.',          bg: '#0f0808', acc: '#e1306c', orb1: 'rgba(225,48,108,.25)', orb2: 'rgba(188,42,141,.18)', plat: 'platInstagram' },
+      tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.',           bg: '#050505', acc: '#00f2ea', orb1: 'rgba(0,242,234,.2)', orb2: 'rgba(255,0,80,.2)', plat: 'platTiktok' },
+      others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.',              bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
+    };
+
+    function navigateTo(page) {
+      document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
+      const info = PAGES[page] || PAGES.home;
+      document.title = info.title + ' — VidGrab';
+      $('heroTitle').textContent = info.title;
+      $('heroDesc').textContent = info.desc;
+
+      document.documentElement.style.setProperty('--bg', info.bg);
+      document.documentElement.style.setProperty('--acc', info.acc);
+      document.querySelector('.orb-1').style.background = `radial-gradient(circle,${info.orb1},transparent 70%)`;
+      document.querySelector('.orb-2').style.background = `radial-gradient(circle,${info.orb2},transparent 70%)`;
+
+      document.querySelectorAll('.plat-ic').forEach(el => el.classList.remove('on'));
+      if (info.plat) $(info.plat).classList.add('on');
+    }
+
+    function handleHash() {
+      const page = location.hash.replace('#', '') || 'home';
+      navigateTo(PAGES[page] ? page : 'home');
+    }
+
+    window.addEventListener('hashchange', handleHash);
+    document.querySelector('.nav').addEventListener('click', e => {
+      const link = e.target.closest('a[data-page]');
+      if (link) {
+        e.preventDefault();
+        const page = link.dataset.page;
+        if (page === 'home') {
+          history.replaceState(null, '', window.location.pathname);
+        } else {
+          location.hash = page;
+        }
+        navigateTo(page);
+      }
+    });
+
     // ─── Init ───
     updateBadge();
     loadAds();
     consumePendingSharedText();
+    handleHash();

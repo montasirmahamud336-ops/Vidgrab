@@ -12,9 +12,9 @@
 
     :root {
       --bg:#06080f;
-      --card:rgba(13,17,23,0.75);
-      --card-bd:rgba(56,189,248,0.1);
-      --card-bd-h:rgba(56,189,248,0.25);
+      --card:rgba(13,17,23,0.98);
+      --card-bd:rgba(56,189,248,0.18);
+      --card-bd-h:rgba(56,189,248,0.35);
       --acc:#38bdf8;
       --acc-glow:rgba(56,189,248,0.12);
       --acc-h:#0ea5e9;
@@ -40,8 +40,7 @@
     .nav a{padding:7px 14px;border-radius:8px;font-size:.78rem;font-weight:500;color:var(--t3);text-decoration:none;transition:all .2s;white-space:nowrap}
     .nav a:hover{color:var(--t1);background:rgba(148,163,184,.06)}
     .nav a.on{color:var(--t1);background:rgba(56,189,248,.1);color:#38bdf8}
-    .nav a svg{width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:5px}
-    .nav .push{margin-left:auto}
+    .nav a svg{width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px}
 
     body {
       font-family:'Inter',-apple-system,sans-serif;
@@ -49,13 +48,14 @@
       min-height:100vh;display:flex;flex-direction:column;align-items:center;
       overflow-x:hidden;
     }
+    .page-layout{flex:1;display:flex;width:100%}
 
     .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-    .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.35;animation:oF 20s ease-in-out infinite}
-    .orb-1{width:520px;height:520px;background:radial-gradient(circle,rgba(56,189,248,.3),transparent 70%);top:-18%;left:-12%}
-    .orb-2{width:420px;height:420px;background:radial-gradient(circle,rgba(139,92,246,.22),transparent 70%);bottom:-12%;right:-8%;animation-delay:-7s;animation-duration:26s}
-    .orb-3{width:280px;height:280px;background:radial-gradient(circle,rgba(56,189,248,.12),transparent 70%);top:45%;left:55%;animation-delay:-13s;animation-duration:22s}
-    .grid-ov{position:absolute;inset:0;background-image:linear-gradient(rgba(56,189,248,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.025) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 70%)}
+    .orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.9;animation:oF 20s ease-in-out infinite}
+    .orb-1{width:520px;height:520px;background:radial-gradient(circle,rgba(56,189,248,.4),transparent 70%);top:-18%;left:-12%}
+    .orb-2{width:420px;height:420px;background:radial-gradient(circle,rgba(139,92,246,.32),transparent 70%);bottom:-12%;right:-8%;animation-delay:-7s;animation-duration:26s}
+    .orb-3{width:280px;height:280px;background:radial-gradient(circle,rgba(56,189,248,.2),transparent 70%);top:45%;left:55%;animation-delay:-13s;animation-duration:22s}
+    .grid-ov{position:absolute;inset:0;background-image:linear-gradient(rgba(56,189,248,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.1) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at center,black 30%,transparent 70%)}
     @keyframes oF{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(35px,-45px) scale(1.06)}50%{transform:translate(-25px,25px) scale(.94)}75%{transform:translate(40px,35px) scale(1.03)}}
 
     .toasts{position:fixed;top:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:10px}
@@ -67,45 +67,93 @@
     @keyframes tI{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
     @keyframes tO{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(40px)}}
 
-    /* ── Ad Slots & Layout ── */
+    /* ── Ad Slots ── */
     #adBottomBanner{display:none;width:100%;text-align:center;padding:10px 0;background:rgba(0,0,0,.2);border-radius:var(--r-md);position:relative;margin-top:24px}
     #adBottomBanner img,#adBottomBanner iframe{max-width:100%;border:none}
-
     .page-layout{display:flex;width:100%;position:relative;z-index:1;justify-content:center;align-items:flex-start;gap:20px;flex-wrap:wrap;flex:1}
-
     #adTopBanner{display:none;width:100%;text-align:center;padding:10px 0;background:rgba(0,0,0,.2);border-radius:var(--r-md)}
     #adTopBanner img,#adTopBanner iframe{max-width:100%;border:none}
-
     .side-ad{display:none;width:160px;flex-shrink:0;position:sticky;top:36px;align-self:flex-start;padding:10px 0;background:rgba(0,0,0,.2);border-radius:var(--r-md);text-align:center;min-height:200px}
     .side-ad img,.side-ad iframe{max-width:100%;border:none}
 
-    .content-column{display:flex;flex-direction:column;align-items:stretch;width:92%;max-width:560px;flex-shrink:0;padding:36px 0}
+    .content-column{display:flex;flex-direction:column;align-items:stretch;width:92%;max-width:640px;flex-shrink:0;padding:36px 0;margin:auto}
 
     .main{position:relative;z-index:1;width:100%}
     .hdr{text-align:center;margin-bottom:28px}
     .logo{display:inline-flex;align-items:center;gap:12px;margin-bottom:14px}
-    .logo-ic{width:60px;height:60px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 10px 24px rgba(14,165,233,.28))}
+    .logo-ic{width:68px;height:68px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 10px 24px rgba(14,165,233,.28))}
     .logo-ic img{width:100%;height:100%;object-fit:contain}
     .logo-tx{font-size:1.35rem;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,var(--t1),var(--t2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
     .hdr h1{font-size:1.45rem;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
     .hdr p{font-size:.88rem;color:var(--t2);line-height:1.5}
 
-    .card{background:var(--card);border:1px solid var(--card-bd);border-radius:var(--r-xl);padding:26px;backdrop-filter:blur(24px);box-shadow:0 4px 6px rgba(0,0,0,.08),0 20px 50px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.04);transition:border-color .3s}
-    .card:hover{border-color:var(--card-bd-h)}
+    /* ── CARD with rotating border ── */
+    .card-outer{
+      position:relative;
+      border-radius:22px;
+      padding:2px;
+      background:transparent;
+    }
+    /* the spinning conic gradient border */
+    .card-outer::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      border-radius:22px;
+      padding:2px;
+      background:conic-gradient(
+        from var(--angle, 0deg),
+        transparent 0deg,
+        rgba(56,189,248,0.0) 60deg,
+        rgba(56,189,248,0.9) 120deg,
+        rgba(139,92,246,0.7) 160deg,
+        rgba(56,189,248,0.0) 220deg,
+        transparent 360deg
+      );
+      -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite:xor;
+      mask-composite:exclude;
+      animation:spinBorder 4s linear infinite;
+    }
+    /* solid base border always visible underneath */
+    .card-outer::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      border-radius:22px;
+      border:2px solid rgba(56,189,248,0.18);
+      pointer-events:none;
+    }
+    @property --angle{syntax:'<angle>';initial-value:0deg;inherits:false}
+    @keyframes spinBorder{to{--angle:360deg}}
 
-    .inp-sec{display:flex;flex-direction:column;gap:10px}
+    .card{
+      background:var(--card);
+      border-radius:20px;
+      padding:30px;
+      backdrop-filter:blur(8px);
+      box-shadow:0 4px 6px rgba(0,0,0,.08),0 20px 50px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.06);
+      position:relative;
+      overflow:hidden;
+    }
+    .card-glow{position:absolute;top:-40%;left:-20%;width:140%;height:80%;background:radial-gradient(ellipse,var(--acc-glow),transparent 60%);pointer-events:none;opacity:.4}
+
+    .inp-sec{display:flex;flex-direction:column;gap:12px}
     .inp-row{display:flex;gap:8px}
     .inp-wrap{flex:1;position:relative;display:flex;align-items:center}
-    .inp-wrap input{width:100%;padding:13px 42px 13px 15px;border-radius:var(--r-md);border:1px solid var(--inp-bd);background:var(--inp-bg);color:var(--t1);font-family:inherit;font-size:.88rem;outline:none;transition:all .25s}
+    .inp-wrap input{width:100%;padding:14px 44px 14px 16px;border-radius:12px;border:1.5px solid var(--inp-bd);background:var(--inp-bg);color:var(--t1);font-family:inherit;font-size:.88rem;outline:none;transition:all .3s}
     .inp-wrap input::placeholder{color:var(--t3)}
-    .inp-wrap input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-glow)}
-    .paste-b{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:var(--r-sm);border:none;background:rgba(148,163,184,.07);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+    .inp-wrap input:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--acc-glow),inset 0 1px 2px rgba(0,0,0,.2)}
+    .paste-b{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:8px;border:none;background:rgba(148,163,184,.07);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
     .paste-b:hover{background:rgba(148,163,184,.14);color:var(--t1)}
-    .paste-b svg{width:15px;height:15px}
-    .check-b{padding:13px 18px;border-radius:var(--r-md);border:none;background:linear-gradient(135deg,var(--acc),var(--acc-h));color:#020a1c;font-family:inherit;font-size:.84rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .25s;box-shadow:0 2px 12px rgba(56,189,248,.22);display:flex;align-items:center;gap:7px}
+    .paste-b svg{width:17px;height:17px}
+    .check-b{padding:14px 22px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--acc),var(--acc-h));color:#020a1c;font-family:inherit;font-size:.84rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .3s;box-shadow:0 2px 12px rgba(56,189,248,.22),inset 0 1px 0 rgba(255,255,255,.2);display:flex;align-items:center;gap:7px;position:relative;overflow:hidden}
+    .check-b::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-100%);transition:transform .6s}
+    .check-b:hover:not(:disabled)::after{transform:translateX(100%)}
     .check-b:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 18px rgba(56,189,248,.35)}
     .check-b:disabled{opacity:.45;cursor:not-allowed}
-    .check-b svg{width:15px;height:15px}
+    .check-b svg{width:17px;height:17px}
 
     .p-badge{display:none;align-items:center;gap:7px;padding:6px 13px;border-radius:100px;font-size:.76rem;font-weight:500;width:fit-content;animation:sD .3s ease}
     .p-badge.vis{display:inline-flex}
@@ -116,11 +164,6 @@
     .p-badge.fb{background:rgba(24,119,242,.08);color:#1877f2;border:1px solid rgba(24,119,242,.18)}
     .p-badge.df{background:rgba(148,163,184,.06);color:var(--t2);border:1px solid rgba(148,163,184,.12)}
     .p-badge svg{width:13px;height:13px}
-    .ana-bar{display:none;height:3px;background:rgba(148,163,184,.08);border-radius:3px;overflow:hidden;margin-top:12px;position:relative}
-    .ana-bar.vis{display:block}
-    .ana-bar-fill{width:30%;height:100%;border-radius:3px;background:linear-gradient(90deg,#38bdf8,#818cf8);transform:translateX(-100%);position:absolute;inset:0}
-    .ana-bar.vis .ana-bar-fill{animation:anaSlide 1.2s ease-in-out infinite}
-    @keyframes anaSlide{0%{transform:translateX(-100%)}100%{transform:translateX(420%)}}
     @keyframes sD{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
     .v-info{display:none;margin-top:22px;padding-top:22px;border-top:1px solid rgba(148,163,184,.08);animation:fU .4s ease}
@@ -128,7 +171,7 @@
     @keyframes fU{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
     .th-sec{display:flex;gap:14px;margin-bottom:22px}
-    .th-wrap{position:relative;width:156px;min-width:156px;height:88px;border-radius:var(--r-md);overflow:hidden;background:var(--inp-bg);border:1px solid var(--inp-bd);flex-shrink:0}
+    .th-wrap{position:relative;width:156px;min-width:156px;height:88px;border-radius:var(--r-md);overflow:hidden;background:var(--inp-bg);border:1.5px solid rgba(56,189,248,0.15);flex-shrink:0}
     .th-wrap img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
     .th-wrap:hover img{transform:scale(1.05)}
     .th-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);opacity:0;transition:opacity .3s}
@@ -149,44 +192,200 @@
     .opts{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
     .opt-grp label{display:block;font-size:.75rem;font-weight:500;color:var(--t2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
     .q-chips{display:flex;gap:7px;flex-wrap:wrap}
-    .chip{padding:7px 15px;border-radius:100px;border:1px solid var(--chip-bd);background:var(--chip-bg);color:var(--t2);font-family:inherit;font-size:.78rem;font-weight:500;cursor:pointer;transition:all .2s}
-    .chip:hover{border-color:rgba(148,163,184,.25);background:rgba(148,163,184,.1)}
-    .chip.on{border-color:var(--chip-on-bd);background:var(--chip-on-bg);color:var(--acc)}
 
-    .tog-row{display:flex;align-items:center;justify-content:space-between}
-    .tog-lbl{font-size:.83rem;color:var(--t2)}
-    .tog{width:42px;height:23px;border-radius:100px;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);cursor:pointer;position:relative;transition:all .25s}
-    .tog.on{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.35)}
-    .tog-th{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--t3);transition:all .25s}
-    .tog.on .tog-th{left:21px;background:var(--acc)}
+    /* ── Premium chip toggle ── */
+    .chip{
+      padding:8px 16px;
+      border-radius:100px;
+      border:1.5px solid var(--chip-bd);
+      background:var(--chip-bg);
+      color:var(--t2);
+      font-family:inherit;
+      font-size:.78rem;
+      font-weight:500;
+      cursor:pointer;
+      transition:all .25s cubic-bezier(.34,1.56,.64,1);
+      position:relative;
+      overflow:hidden;
+    }
+    .chip::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:radial-gradient(circle at center, rgba(56,189,248,0.15), transparent 70%);
+      opacity:0;
+      transition:opacity .3s;
+    }
+    .chip:hover{
+      border-color:rgba(56,189,248,0.3);
+      color:var(--t1);
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(56,189,248,0.1);
+    }
+    .chip:hover::after{ opacity:1; }
+    .chip.on{
+      border-color:var(--chip-on-bd);
+      background:var(--chip-on-bg);
+      color:var(--acc);
+      transform:translateY(-1px);
+      box-shadow:0 4px 16px rgba(56,189,248,0.18);
+    }
+    .chip.on::after{ opacity:1; }
 
-    .dl-b{width:100%;padding:13px;border-radius:var(--r-md);border:none;background:linear-gradient(135deg,var(--acc),var(--acc-h));color:#020a1c;font-family:inherit;font-size:.92rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;transition:all .25s;box-shadow:0 2px 12px rgba(56,189,248,.22);position:relative;overflow:hidden}
-    .dl-b::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent,rgba(255,255,255,.14),transparent);transform:translateX(-100%);transition:transform .5s}
-    .dl-b:hover:not(:disabled)::before{transform:translateX(100%)}
-    .dl-b:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 22px rgba(56,189,248,.38)}
-    .dl-b:disabled{opacity:.45;cursor:not-allowed}
-    .dl-b svg{width:17px;height:17px}
+    /* ── Premium toggle ── */
+    .tog-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;border:1.5px solid var(--inp-bd);background:var(--inp-bg);transition:all .3s}
+    .tog-row:hover{border-color:rgba(148,163,184,0.2)}
+    .tog-row.active-audio{border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.04)}
+    .tog-lbl{font-size:.83rem;color:var(--t2);display:flex;align-items:center;gap:8px}
+    .tog-lbl svg{width:15px;height:15px;color:var(--t3)}
+    .tog{
+      width:48px;height:26px;
+      border-radius:100px;
+      background:rgba(148,163,184,0.12);
+      border:1.5px solid rgba(148,163,184,0.18);
+      cursor:pointer;
+      position:relative;
+      transition:all .3s cubic-bezier(.34,1.56,.64,1);
+      flex-shrink:0;
+    }
+    .tog.on{
+      background:rgba(52,211,153,0.15);
+      border-color:rgba(52,211,153,0.4);
+      box-shadow:0 0 12px rgba(52,211,153,0.15);
+    }
+    .tog-th{
+      position:absolute;
+      top:3px;left:3px;
+      width:18px;height:18px;
+      border-radius:50%;
+      background:var(--t3);
+      transition:all .3s cubic-bezier(.34,1.56,.64,1);
+      box-shadow:0 1px 4px rgba(0,0,0,0.3);
+    }
+    .tog.on .tog-th{
+      left:23px;
+      background:var(--grn);
+      box-shadow:0 0 8px rgba(52,211,153,0.5);
+    }
 
-    .prog{display:none;margin-top:14px;animation:fU .3s ease}
+    /* ── Download button with shimmer ── */
+    .dl-b{
+      width:100%;
+      padding:15px;
+      border-radius:12px;
+      border:none;
+      background:linear-gradient(135deg,var(--acc),var(--acc-h));
+      color:#020a1c;
+      font-family:inherit;
+      font-size:.94rem;
+      font-weight:700;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      transition:all .3s;
+      box-shadow:0 2px 16px rgba(56,189,248,.25),inset 0 1px 0 rgba(255,255,255,.2);
+      position:relative;
+      overflow:hidden;
+    }
+    /* shimmer sweep */
+    .dl-b::before{
+      content:'';
+      position:absolute;
+      top:0;left:-100%;
+      width:60%;height:100%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+      animation:shimmer 2.5s ease-in-out infinite;
+      pointer-events:none;
+    }
+    @keyframes shimmer{
+      0%{left:-100%}
+      100%{left:200%}
+    }
+    /* pulse glow */
+    .dl-b::after{
+      content:'';
+      position:absolute;
+      inset:-2px;
+      border-radius:14px;
+      background:linear-gradient(135deg,var(--acc),var(--acc-h));
+      z-index:-1;
+      opacity:0;
+      animation:btnPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes btnPulse{
+      0%,100%{opacity:0;transform:scale(1)}
+      50%{opacity:0.3;transform:scale(1.02)}
+    }
+    .dl-b:hover:not(:disabled){
+      transform:translateY(-2px);
+      box-shadow:0 6px 28px rgba(56,189,248,.4);
+    }
+    .dl-b:active:not(:disabled){transform:translateY(0)}
+    .dl-b:disabled{opacity:.45;cursor:not-allowed;animation:none}
+    .dl-b:disabled::before{animation:none}
+    .dl-b svg{width:20px;height:20px;flex-shrink:0}
+
+    /* ── Progress bar (clean, no word spinner) ── */
+    .prog{display:none;margin-top:18px;animation:fU .3s ease}
     .prog.vis{display:block}
-    .prog-track{width:100%;height:5px;border-radius:100px;background:rgba(148,163,184,.08);overflow:hidden;margin-bottom:7px}
-    .prog-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--acc),var(--pur));width:0%;transition:width .3s}
-    .prog-fill.indet{width:28%;animation:ind 1.4s ease-in-out infinite}
-    @keyframes ind{0%{transform:translateX(-100%)}100%{transform:translateX(420%)}}
-    .prog-txt{font-size:.78rem;color:var(--t3)}
-
+    .prog-label-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .prog-label{font-size:.78rem;color:var(--t2);font-weight:500}
+    .prog-pct{font-size:.78rem;color:var(--acc);font-weight:600}
+    .prog-track{
+      height:5px;
+      border-radius:100px;
+      background:rgba(148,163,184,0.1);
+      overflow:hidden;
+      border:1px solid rgba(148,163,184,0.08);
+    }
+    .prog-fill{
+      height:100%;
+      border-radius:100px;
+      background:linear-gradient(90deg,var(--acc),var(--pur));
+      width:0%;
+      transition:width .4s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    /* shimmer on progress fill */
+    .prog-fill::after{
+      content:'';
+      position:absolute;
+      top:0;left:0;right:0;bottom:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);
+      animation:progShimmer 1.2s ease-in-out infinite;
+    }
+    @keyframes progShimmer{
+      0%{transform:translateX(-100%)}
+      100%{transform:translateX(200%)}
+    }
+    .prog-steps{display:flex;gap:5px;margin-top:10px}
+    .prog-step{
+      flex:1;height:3px;border-radius:100px;
+      background:rgba(148,163,184,0.1);
+      transition:all .4s ease;
+      position:relative;overflow:hidden;
+    }
+    .prog-step.done{background:linear-gradient(90deg,var(--acc),var(--pur))}
+    .prog-step.active{background:rgba(56,189,248,0.3)}
+    .prog-step-labels{display:flex;gap:5px;margin-top:5px}
+    .prog-step-lbl{flex:1;font-size:.62rem;color:var(--t3);text-align:center;transition:color .3s}
+    .prog-step-lbl.active{color:var(--acc)}
+    .prog-step-lbl.done{color:var(--t2)}
 
     .set-hint{font-size:.7rem;color:var(--t3);margin-top:4px}
 
     .plats{text-align:center;margin-top:28px}
     .plats p{font-size:.7rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
-    .plat-ics{display:flex;justify-content:center;gap:18px;flex-wrap:wrap}
-    .plat-ic{display:flex;flex-direction:column;align-items:center;gap:5px;opacity:.45;transition:opacity .3s;text-decoration:none;cursor:pointer}
+    .plat-ics{display:flex;justify-content:center;gap:22px;flex-wrap:wrap}
+    .plat-ic{display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.45;transition:opacity .3s;text-decoration:none;cursor:pointer}
     .plat-ic:hover{opacity:.7}
     .plat-ic.on{opacity:1}
-    .plat-ic .ic-c{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-    .plat-ic span{font-size:.62rem;color:var(--t3)}
-    .plat-ic svg{width:15px;height:15px;fill:currentColor}
+    .plat-ic .ic-c{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+    .plat-ic span{font-size:.65rem;color:var(--t3)}
+    .plat-ic svg{width:20px;height:20px;fill:currentColor}
 
     footer{text-align:center;margin-top:28px;font-size:.78rem;color:var(--t3)}
     .spinner{width:16px;height:16px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:sp .7s linear infinite}
@@ -222,124 +421,143 @@
     <a href="#instagram" data-page="instagram"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.9 3.9 0 01-1.4-.9 3.9 3.9 0 01-.9-1.4c-.2-.4-.3-1-.4-2.2C2 13.6 2 13.3 2 10s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 4.9.3 4.1.6c-.8.3-1.5.7-2.1 1.4C1.3 2.6.9 3.3.6 4.1.3 4.9.1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.2 2.2.5 3 .3.8.7 1.5 1.4 2.1.7.7 1.3 1.1 2.1 1.4.8.3 1.7.5 3 .5 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c1.3-.1 2.2-.2 3-.5.8-.3 1.5-.7 2.1-1.4.7-.7 1.1-1.3 1.4-2.1.3-.8.5-1.7.5-3 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.2-2.2-.5-3-.3-.8-.7-1.5-1.4-2.1-.7-.7-1.3-1.1-2.1-1.4-.8-.3-1.7-.5-3-.5C15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 100 12.4 6.2 6.2 0 000-12.4zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-10.7a1.4 1.4 0 11-2.8 0 1.4 1.4 0 012.8 0z"/></svg>Instagram</a>
     <a href="#tiktok" data-page="tiktok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 1h-3.7v13.2a3.3 3.3 0 01-3.3 3.2 3.3 3.3 0 01-3.3-3.2 3.3 3.3 0 013.3-3.3c.3 0 .7.1 1 .2V7.2c-.3 0-.7-.1-1-.1a6.6 6.6 0 00-6.6 6.6 6.6 6.6 0 006.6 6.6 6.6 6.6 0 006.6-6.6V8.1a9.9 9.9 0 005.2 1.5V5.8A6 6 0 0118.9 1z"/></svg>TikTok</a>
     <a href="#others" data-page="others"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>Others</a>
-    <a href="/admin/" class="push"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Admin</a>
   </nav>
 
   <div class="page-layout">
 
     <div id="adTopBanner"></div>
-
     <div class="side-ad" id="adLeftBanner"></div>
 
     <div class="content-column">
 
       <main class="main">
-      <header class="hdr">
-        <div class="logo">
-          <div class="logo-ic">
-            <img src="/assets/app-logo.png" alt="VidGrab logo" />
+        <header class="hdr">
+          <div class="logo">
+            <div class="logo-ic">
+              <img src="/assets/app-logo.png" alt="VidGrab logo" />
+            </div>
+            <span class="logo-tx">VidGrab</span>
           </div>
-          <span class="logo-tx">VidGrab</span>
-        </div>
-        <h1 id="heroTitle">VidGrab Video Downloader</h1>
-        <p id="heroDesc">Paste a link, preview the video, and download directly in your browser.</p>
-      </header>
+          <h1 id="heroTitle">VidGrab Video Downloader</h1>
+          <p id="heroDesc">Paste a link, preview the video, and download directly in your browser.</p>
+        </header>
 
-      <div class="card">
-        <div class="inp-sec">
-          <div class="p-badge" id="badge">
-            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-            <span id="badgeTxt">Platform</span>
-          </div>
-          <div class="inp-row">
-            <div class="inp-wrap">
-              <input type="text" id="urlIn" placeholder="Paste video link here..." autocomplete="off" />
-              <button class="paste-b" id="pasteB" title="Paste from clipboard">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        <!-- Card with rotating border wrapper -->
+        <div class="card-outer">
+          <div class="card">
+            <div class="card-glow"></div>
+            <div class="inp-sec">
+              <div class="p-badge" id="badge">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                <span id="badgeTxt">Platform</span>
+              </div>
+              <div class="inp-row">
+                <div class="inp-wrap">
+                  <input type="text" id="urlIn" placeholder="Paste video link here..." autocomplete="off" />
+                  <button class="paste-b" id="pasteB" title="Paste from clipboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  </button>
+                </div>
+                <button class="check-b" id="checkB">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  Search
+                </button>
+              </div>
+            </div>
+
+            <div class="v-info" id="vInfo">
+              <div class="th-sec">
+                <div class="th-wrap" id="thWrap">
+                  <div class="th-ld" id="thLd"><div class="spin"></div></div>
+                  <div class="th-ph" id="thPh" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="m10 8 5 4-5 4V8z"/></svg>
+                  </div>
+                  <div class="th-err" id="thErr" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>No preview</span>
+                  </div>
+                  <img id="thImg" src="" alt="" style="display:none;" />
+                  <div class="th-ov">
+                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                </div>
+                <div class="v-det">
+                  <h3 id="vTitle">Loading...</h3>
+                  <span class="ptag" id="vPlat">—</span>
+                </div>
+              </div>
+
+              <div class="opts">
+                <div class="opt-grp">
+                  <label>Video Quality</label>
+                  <div class="q-chips" id="qChips">
+                    <button class="chip" data-q="360">360p</button>
+                    <button class="chip" data-q="480">480p</button>
+                    <button class="chip on" data-q="720">720p</button>
+                    <button class="chip" data-q="1080">1080p</button>
+                    <button class="chip" data-q="1440">1440p</button>
+                    <button class="chip" data-q="2160">4K</button>
+                  </div>
+                </div>
+                <div class="opt-grp">
+                  <div class="tog-row" id="togRow">
+                    <span class="tog-lbl">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      Audio Only (MP3)
+                    </span>
+                    <div class="tog" id="audioTog"><div class="tog-th"></div></div>
+                  </div>
+                </div>
+              </div>
+
+              <button class="dl-b" id="dlB">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Now
               </button>
+
+              <!-- Clean progress (no word spinner) -->
+              <div class="prog" id="prog">
+                <div class="prog-label-row">
+                  <span class="prog-label" id="progLabel">Preparing...</span>
+                  <span class="prog-pct" id="progPct">0%</span>
+                </div>
+                <div class="prog-track">
+                  <div class="prog-fill" id="progFill"></div>
+                </div>
+                <div class="prog-steps">
+                  <div class="prog-step" id="ps1"></div>
+                  <div class="prog-step" id="ps2"></div>
+                  <div class="prog-step" id="ps3"></div>
+                  <div class="prog-step" id="ps4"></div>
+                </div>
+                <div class="prog-step-labels">
+                  <span class="prog-step-lbl" id="pl1">Connecting</span>
+                  <span class="prog-step-lbl" id="pl2">Extracting</span>
+                  <span class="prog-step-lbl" id="pl3">Processing</span>
+                  <span class="prog-step-lbl" id="pl4">Ready</span>
+                </div>
+              </div>
+
             </div>
-            <button class="check-b" id="checkB">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              Search
-            </button>
+          </div>
+        </div>
+        <!-- end card-outer -->
+
+        <div class="plats">
+          <p>Supported Platforms</p>
+          <div class="plat-ics">
+            <a href="#youtube"   class="plat-ic" id="platYoutube"   style="color:#ff4444;"><div class="ic-c" style="background:rgba(255,0,0,.08);"><svg viewBox="0 0 24 24"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.3 31.3 0 000 12a31.3 31.3 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.3 31.3 0 0024 12a31.3 31.3 0 00-.5-5.8zM9.5 15.6V8.4L15.8 12z"/></svg></div><span>YouTube</span></a>
+            <a href="#instagram" class="plat-ic" id="platInstagram" style="color:#e1306c;"><div class="ic-c" style="background:rgba(225,48,108,.08);"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.9 3.9 0 01-1.4-.9 3.9 3.9 0 01-.9-1.4c-.2-.4-.3-1-.4-2.2C2 13.6 2 13.3 2 10s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 4.9.3 4.1.6c-.8.3-1.5.7-2.1 1.4C1.3 2.6.9 3.3.6 4.1.3 4.9.1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.2 2.2.5 3 .3.8.7 1.5 1.4 2.1.7.7 1.3 1.1 2.1 1.4.8.3 1.7.5 3 .5 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c1.3-.1 2.2-.2 3-.5.8-.3 1.5-.7 2.1-1.4.7-.7 1.1-1.3 1.4-2.1.3-.8.5-1.7.5-3 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.2-2.2-.5-3-.3-.8-.7-1.5-1.4-2.1-.7-.7-1.3-1.1-2.1-1.4-.8-.3-1.7-.5-3-.5C15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 100 12.4 6.2 6.2 0 000-12.4zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-10.7a1.4 1.4 0 11-2.8 0 1.4 1.4 0 012.8 0z"/></svg></div><span>Instagram</span></a>
+            <a href="#tiktok"    class="plat-ic" id="platTiktok"    style="color:#ff0050;"><div class="ic-c" style="background:rgba(255,0,80,.08);"><svg viewBox="0 0 24 24"><path d="M19.3 7.1A4.5 4.5 0 0016.9 4.7 6 6 0 0013.5 4h-3a6 6 0 00-3.4.7A4.5 4.5 0 004.7 7.1 6 6 0 004 10.5v3a6 6 0 00.7 3.4 4.5 4.5 0 002.4 2.4A6 6 0 0010.5 20h3a6 6 0 003.4-.7 4.5 4.5 0 002.4-2.4A6 6 0 0020 13.5v-3a6 6 0 00-.7-3.4zM12 16a4 4 0 110-8 4 4 0 010 8z"/></svg></div><span>TikTok</span></a>
+            <a href="#others"   class="plat-ic" id="platTwitter"   style="color:#1da1f2;"><div class="ic-c" style="background:rgba(29,161,242,.08);"><svg viewBox="0 0 24 24"><path d="M18.9 1h-3.7v13.2a3.3 3.3 0 01-3.3 3.2 3.3 3.3 0 01-3.3-3.2 3.3 3.3 0 013.3-3.3c.3 0 .7.1 1 .2V7.2c-.3 0-.7-.1-1-.1a6.6 6.6 0 00-6.6 6.6 6.6 6.6 0 006.6 6.6 6.6 6.6 0 006.6-6.6V8.1a9.9 9.9 0 005.2 1.5V5.8A6 6 0 0118.9 1z"/></svg></div><span>Twitter/X</span></a>
+            <a href="#facebook"  class="plat-ic" id="platFacebook"  style="color:#1877f2;"><div class="ic-c" style="background:rgba(24,119,242,.08);"><svg viewBox="0 0 24 24"><path d="M24 12a12 12 0 10-13.9 11.9v-8.4H7.1V12h3V9.3c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0024 12z"/></svg></div><span>Facebook</span></a>
+            <a href="#others"   class="plat-ic" id="platOthers"    style="color:#38bdf8;"><div class="ic-c" style="background:rgba(56,189,248,.08);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div><span>Others</span></a>
           </div>
         </div>
 
-        <div class="ana-bar" id="anaBar"><div class="ana-bar-fill" id="anaBarFill"></div></div>
+      </main>
 
-        <div class="v-info" id="vInfo">
-          <div class="th-sec">
-            <div class="th-wrap" id="thWrap">
-              <div class="th-ld" id="thLd"><div class="spin"></div></div>
-              <div class="th-ph" id="thPh" style="display:none;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="m10 8 5 4-5 4V8z"/></svg>
-              </div>
-              <div class="th-err" id="thErr" style="display:none;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span>No preview</span>
-              </div>
-              <img id="thImg" src="" alt="" style="display:none;" />
-              <div class="th-ov">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
-            <div class="v-det">
-              <h3 id="vTitle">Loading...</h3>
-              <span class="ptag" id="vPlat">—</span>
-            </div>
-          </div>
-
-          <div class="opts">
-            <div class="opt-grp">
-              <label>Video Quality</label>
-              <div class="q-chips" id="qChips">
-                <button class="chip" data-q="360">360p</button>
-                <button class="chip" data-q="480">480p</button>
-                <button class="chip on" data-q="720">720p</button>
-                <button class="chip" data-q="1080">1080p</button>
-                <button class="chip" data-q="1440">1440p</button>
-                <button class="chip" data-q="2160">4K</button>
-              </div>
-            </div>
-            <div class="opt-grp">
-              <div class="tog-row">
-                <span class="tog-lbl">Audio Only (MP3)</span>
-                <div class="tog" id="audioTog"><div class="tog-th"></div></div>
-              </div>
-            </div>
-          </div>
-
-          <button class="dl-b" id="dlB">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download Now
-          </button>
-
-          <div class="prog" id="prog">
-            <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
-            <span class="prog-txt" id="progTxt">Processing...</span>
-          </div>
-        </div>
-
-      </div>
-
-      <div class="plats">
-        <p>Supported Platforms</p>
-        <div class="plat-ics">
-          <a href="#youtube"   class="plat-ic" id="platYoutube"   style="color:#ff4444;"><div class="ic-c" style="background:rgba(255,0,0,.08);"><svg viewBox="0 0 24 24"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.3 31.3 0 000 12a31.3 31.3 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.3 31.3 0 0024 12a31.3 31.3 0 00-.5-5.8zM9.5 15.6V8.4L15.8 12z"/></svg></div><span>YouTube</span></a>
-          <a href="#instagram" class="plat-ic" id="platInstagram" style="color:#e1306c;"><div class="ic-c" style="background:rgba(225,48,108,.08);"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.9 3.9 0 01-1.4-.9 3.9 3.9 0 01-.9-1.4c-.2-.4-.3-1-.4-2.2C2 13.6 2 13.3 2 10s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 4.9.3 4.1.6c-.8.3-1.5.7-2.1 1.4C1.3 2.6.9 3.3.6 4.1.3 4.9.1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.2 2.2.5 3 .3.8.7 1.5 1.4 2.1.7.7 1.3 1.1 2.1 1.4.8.3 1.7.5 3 .5 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c1.3-.1 2.2-.2 3-.5.8-.3 1.5-.7 2.1-1.4.7-.7 1.1-1.3 1.4-2.1.3-.8.5-1.7.5-3 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.2-2.2-.5-3-.3-.8-.7-1.5-1.4-2.1-.7-.7-1.3-1.1-2.1-1.4-.8-.3-1.7-.5-3-.5C15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 100 12.4 6.2 6.2 0 000-12.4zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-10.7a1.4 1.4 0 11-2.8 0 1.4 1.4 0 012.8 0z"/></svg></div><span>Instagram</span></a>
-          <a href="#tiktok"    class="plat-ic" id="platTiktok"    style="color:#ff0050;"><div class="ic-c" style="background:rgba(255,0,80,.08);"><svg viewBox="0 0 24 24"><path d="M19.3 7.1A4.5 4.5 0 0016.9 4.7 6 6 0 0013.5 4h-3a6 6 0 00-3.4.7A4.5 4.5 0 004.7 7.1 6 6 0 004 10.5v3a6 6 0 00.7 3.4 4.5 4.5 0 002.4 2.4A6 6 0 0010.5 20h3a6 6 0 003.4-.7 4.5 4.5 0 002.4-2.4A6 6 0 0020 13.5v-3a6 6 0 00-.7-3.4zM12 16a4 4 0 110-8 4 4 0 010 8z"/></svg></div><span>TikTok</span></a>
-          <a href="#others"   class="plat-ic" id="platTwitter"   style="color:#1da1f2;"><div class="ic-c" style="background:rgba(29,161,242,.08);"><svg viewBox="0 0 24 24"><path d="M18.9 1h-3.7v13.2a3.3 3.3 0 01-3.3 3.2 3.3 3.3 0 01-3.3-3.2 3.3 3.3 0 013.3-3.3c.3 0 .7.1 1 .2V7.2c-.3 0-.7-.1-1-.1a6.6 6.6 0 00-6.6 6.6 6.6 6.6 0 006.6 6.6 6.6 6.6 0 006.6-6.6V8.1a9.9 9.9 0 005.2 1.5V5.8A6 6 0 0118.9 1z"/></svg></div><span>Twitter/X</span></a>
-          <a href="#facebook"  class="plat-ic" id="platFacebook"  style="color:#1877f2;"><div class="ic-c" style="background:rgba(24,119,242,.08);"><svg viewBox="0 0 24 24"><path d="M24 12a12 12 0 10-13.9 11.9v-8.4H7.1V12h3V9.3c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0024 12z"/></svg></div><span>Facebook</span></a>
-          <a href="#others"   class="plat-ic" id="platOthers"    style="color:#38bdf8;"><div class="ic-c" style="background:rgba(56,189,248,.08);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div><span>Others</span></a>
-        </div>
-      </div>
-
-      <footer>Created by Montasir Mahmud</footer>
-    </main>
-
-      <!-- Bottom Banner Ad -->
       <div id="adBottomBanner"></div>
-
     </div>
 
     <div class="side-ad" id="adRightBanner"></div>

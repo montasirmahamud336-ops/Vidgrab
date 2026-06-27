@@ -1,3 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime data
+downloads_log.json
+daily_free_log.json
+
+# Backup
+_root_backup/
+
 # Python
 __pycache__/
 *.pyc
@@ -6,14 +17,8 @@ __pycache__/
 dist/
 build/
 
-# Next.js
-.next/
-
 # Node
 node_modules/
 
-
-
-# OS
-.DS_Store
-Thumbs.db
+# Next.js
+.next/

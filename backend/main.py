@@ -12,6 +12,7 @@ import json
 import mimetypes
 import os
 import secrets
+from urllib.parse import quote
 import shutil
 import sys
 import tempfile
@@ -417,12 +418,13 @@ def download_video(request: VideoRequest, req: Request):
 def download_video_file(
     url: str = Query(..., description="Video URL to download"),
     quality: str = Query("best", description="Requested download quality"),
+    title: str = Query(None, description="Optional video title (skips extra yt-dlp info call)"),
     req: Request = None,
 ):
-    temp_dir = tempfile.mkdtemp(prefix="vidgrab-mobile-")
+    temp_dir = tempfile.mkdtemp(prefix="vidgrab-")
     client_ip = get_client_ip(req) if req else "unknown"
     try:
-        safe_title = get_video_title(url)
+        safe_title = sanitize_filename(title) if title else get_video_title(url)
         ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{safe_title}.%(ext)s"))
         extract_with_cookie_fallback(url, ydl_opts, download=True)
 
@@ -431,7 +433,6 @@ def download_video_file(
             cleanup_directory(temp_dir)
             raise HTTPException(status_code=500, detail="Download finished but no output file was found.")
 
-        # ── Track this download ──
         file_size = get_file_size_bytes(downloaded_file)
         log_download(url=url, title=safe_title, quality=quality, file_size=file_size, client_ip=client_ip)
         ads_cfg = load_ads_config().get("redirect_ads", {})
@@ -445,10 +446,11 @@ def download_video_file(
         final_filename = f"{safe_title}{ext}"
         media_type = mimetypes.guess_type(downloaded_file)[0] or "application/octet-stream"
 
+        encoded_fn = quote(final_filename, safe='')
         return FileResponse(
             downloaded_file,
             media_type=media_type,
-            filename=final_filename,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
             background=BackgroundTask(cleanup_directory, temp_dir),
         )
     except HTTPException:
