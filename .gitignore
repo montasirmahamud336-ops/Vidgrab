@@ -3,8 +3,12 @@
 Thumbs.db
 
 # Runtime data
+ads_config.json
 downloads_log.json
 daily_free_log.json
+multipage/ads_config.json
+multipage/downloads_log.json
+multipage/daily_free_log.json
 
 # Backup
 _root_backup/
