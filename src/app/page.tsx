@@ -307,6 +307,13 @@ export default function AdminPanel() {
     }
   }, [fetchStats]);
 
+  // ─── Auto-refresh stats every 8 seconds ─────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(fetchStats, 8000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchStats]);
+
   // ─── Save config ──────────────────────────────────────
   const saveConfig = async (section: string, payload: Record<string, unknown>) => {
     setIsSaving(true);
