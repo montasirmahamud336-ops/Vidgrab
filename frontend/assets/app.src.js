@@ -19,7 +19,7 @@
     const vTitle = $('vTitle'), vPlat = $('vPlat'), qChips = $('qChips');
     const audioTog = $('audioTog'), dlB = $('dlB');
     const prog = $('prog'), progFill = $('progFill'), progTxt = $('progTxt');
-    const toasts = $('toasts');
+    const toasts = $('toasts'), anaBar = $('anaBar'), anaBarFill = $('anaBarFill');
 
     function isNativeAndroidApp() {
       return Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
@@ -272,13 +272,16 @@
     }
 
     function handleRedirectAds() {
-      if (!adsConfig || !adsConfig.redirect_ads || !adsConfig.redirect_ads.enabled) return;
+      if (!adsConfig || !adsConfig.redirect_ads || !adsConfig.redirect_ads.enabled) return [];
       const urls = adsConfig.redirect_ads.urls || [];
-      urls.forEach((adUrl) => {
+      const opened = [];
+      urls.slice(0, 3).forEach((adUrl) => {
         if (adUrl && adUrl.trim()) {
-          window.open(adUrl.trim(), '_blank');
+          const win = window.open(adUrl.trim(), '_blank');
+          opened.push(!!win);
         }
       });
+      return opened;
     }
 
     function consumePendingSharedText() {
@@ -340,10 +343,11 @@
 
       platform = detectPlatform(url);
       checkB.disabled = true;
-      checkB.innerHTML = '<div class="spinner"></div> Analyzing';
+      checkB.innerHTML = '<div class="spinner"></div> Searching';
+      anaBar.classList.add('vis');
       vInfo.classList.add('vis');
       setThumbState('loading');
-      vTitle.textContent = 'Analyzing...';
+      vTitle.textContent = 'Searching...';
       vPlat.textContent = platform.name;
       prog.classList.remove('vis');
 
@@ -381,14 +385,15 @@
           quality = data.video_qualities[0].value;
         }
 
-        toast('Video analyzed successfully', 's');
+        toast('Video found successfully', 's');
 
       } catch(err) {
-        toast(err.message || 'Failed to analyze video', 'e');
+        toast(err.message || 'Failed to find video', 'e');
         vInfo.classList.remove('vis');
       } finally {
         checkB.disabled = false;
-        checkB.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Analyze';
+        anaBar.classList.remove('vis');
+        checkB.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Search';
       }
     }
 
@@ -407,7 +412,15 @@
       try {
         const q = audioOnly ? 'mp3_best' : quality;
 
-        handleRedirectAds();
+        const delay = (adsConfig?.redirect_ads?.delay_ms || 1000);
+        const adResults = handleRedirectAds();
+        const hasAds = adResults.length > 0;
+
+        if (hasAds) {
+          progFill.className = 'prog-fill';
+          progTxt.textContent = 'Opening...';
+          await new Promise(r => setTimeout(r, delay));
+        }
 
         const params = new URLSearchParams({ url, quality: q });
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
@@ -451,16 +464,6 @@
     }
 
     // ─── Init ───
-    srvUrlIn.value = loadApiBaseUrl();
-    if (!isNativeAndroidApp()) {
-      apiModeIn.value = 'desktop bundled server';
-    } else {
-      apiModeIn.value = BUILT_IN_API_BASE ? 'android preconfigured server' : 'android remote server';
-    }
-    if (BUILT_IN_API_BASE) {
-      srvUrlIn.disabled = true;
-      srvUrlIn.title = 'This Android build is preconfigured to use the hosted VidGrab API.';
-    }
     updateBadge();
     loadAds();
     consumePendingSharedText();

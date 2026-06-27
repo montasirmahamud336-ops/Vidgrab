@@ -109,6 +109,11 @@
     .p-badge.fb{background:rgba(24,119,242,.08);color:#1877f2;border:1px solid rgba(24,119,242,.18)}
     .p-badge.df{background:rgba(148,163,184,.06);color:var(--t2);border:1px solid rgba(148,163,184,.12)}
     .p-badge svg{width:13px;height:13px}
+    .ana-bar{display:none;height:3px;background:rgba(148,163,184,.08);border-radius:3px;overflow:hidden;margin-top:12px}
+    .ana-bar.vis{display:block}
+    .ana-bar-fill{height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#38bdf8,#818cf8,#38bdf8);background-size:200% 100%;transition:width .3s}
+    .ana-bar.vis .ana-bar-fill{animation:anaSlide 1.5s ease-in-out infinite}
+    @keyframes anaSlide{0%{width:0;background-position:200% 0}50%{width:70%;background-position:0 0}100%{width:100%;background-position:-200% 0}}
     @keyframes sD{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
     .v-info{display:none;margin-top:22px;padding-top:22px;border-top:1px solid rgba(148,163,184,.08);animation:fU .4s ease}
@@ -237,10 +242,12 @@
             </div>
             <button class="check-b" id="checkB">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              Analyze
+              Search
             </button>
           </div>
         </div>
+
+        <div class="ana-bar" id="anaBar"><div class="ana-bar-fill" id="anaBarFill"></div></div>
 
         <div class="v-info" id="vInfo">
           <div class="th-sec">
