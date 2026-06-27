@@ -8,6 +8,7 @@ from starlette.background import BackgroundTask
 from datetime import datetime, timedelta, timezone
 import imageio_ffmpeg
 import glob
+import hashlib
 import json
 import mimetypes
 import os
@@ -249,12 +250,18 @@ def build_download_settings(quality: str):
     }
 
 
-def sanitize_filename(name: str, max_len: int = 200) -> str:
+def sanitize_filename(name: str, max_len: int = 80) -> str:
     name = "".join(c for c in name if c.isprintable() and c not in '<>:"/\\|?*')
     name = name.strip().rstrip(".")
     if len(name) > max_len:
         name = name[:max_len].rsplit(" ", 1)[0]
     return name or "video"
+
+def short_filename(name: str) -> str:
+    """Generate a short, safe filename using a hash to avoid filesystem length limits."""
+    h = hashlib.md5(name.encode("utf-8")).hexdigest()[:12]
+    sanitized = sanitize_filename(name, max_len=40)
+    return f"{sanitized}_{h}" if sanitized else f"video_{h}"
 
 
 def build_download_options(quality: str, output_template: str):
@@ -425,7 +432,8 @@ def download_video_file(
     client_ip = get_client_ip(req) if req else "unknown"
     try:
         safe_title = sanitize_filename(title) if title else get_video_title(url)
-        ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{safe_title}.%(ext)s"))
+        short_name = short_filename(safe_title)
+        ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{short_name}.%(ext)s"))
         extract_with_cookie_fallback(url, ydl_opts, download=True)
 
         downloaded_file = find_latest_file(temp_dir)
