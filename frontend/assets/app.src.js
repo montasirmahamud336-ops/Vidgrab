@@ -441,8 +441,10 @@
 
         await handleRedirectAds();
 
+        const params = new URLSearchParams({ url, quality: q });
+        const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
+
         if (isNativeAndroidApp()) {
-          const downloadUrl = getMobileDownloadUrl(url, q);
           await openNativeDownload(downloadUrl);
           progFill.className = 'prog-fill';
           progFill.style.width = '100%';
@@ -451,19 +453,7 @@
           return;
         }
 
-        const resp = await fetch(`${getApiBaseUrl()}/download`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, quality: q })
-        });
-
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Download failed on server');
-
-        progFill.className = 'prog-fill';
-        progFill.style.width = '100%';
-        progTxt.textContent = data.message || `Saved to ${data.saved_to}`;
-        toast('Download complete! Check your Downloads folder.', 's');
+        window.location.href = downloadUrl;
 
       } catch(err) {
         progFill.className = 'prog-fill';
