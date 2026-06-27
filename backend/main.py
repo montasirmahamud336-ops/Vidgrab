@@ -61,7 +61,7 @@ DEFAULT_ADS_CONFIG = {
         "urls": [],
         "delay_ms": 1000,
         "redirects_before_download": 3,
-        "daily_free_download": true
+        "daily_free_download": True
     },
     "side_banner_left": {
         "enabled": False,
