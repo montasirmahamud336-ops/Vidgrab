@@ -297,13 +297,22 @@
         }
         const urls = adsConfig.redirect_ads.urls || [];
         const delay = adsConfig.redirect_ads.delay_ms || 1000;
+        let opened = 0;
         urls.forEach((adUrl, i) => {
           if (adUrl && adUrl.trim()) {
             setTimeout(() => {
-              window.open(adUrl.trim(), '_blank', 'noopener');
+              const w = window.open(adUrl.trim(), '_blank');
+              if (!w || w.closed || typeof w.closed === 'undefined') {
+                toast('Please allow popups or manually visit: ' + adUrl.trim(), 'i');
+              } else {
+                opened++;
+              }
             }, i * 300);
           }
         });
+        if (opened === 0 && urls.length > 0) {
+          toast('Please support us by visiting the ad links.', 'i');
+        }
         setTimeout(resolve, delay);
       });
     }
