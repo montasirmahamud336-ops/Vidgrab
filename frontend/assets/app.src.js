@@ -377,6 +377,9 @@
       if (!url) { toast('Please paste a video link first', 'e'); urlIn.focus(); return; }
       try { new URL(url); } catch(e) { toast('Invalid URL format', 'e'); return; }
 
+      setPanel.classList.remove('vis');
+      setTog.classList.remove('open');
+
       platform = detectPlatform(url);
       checkB.disabled = true;
       checkB.innerHTML = '<div class="spinner"></div> Analyzing';
