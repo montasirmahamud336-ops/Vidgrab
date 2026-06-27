@@ -1,0 +1,659 @@
+from fastapi import FastAPI, HTTPException, Query, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from pydantic import BaseModel
+from starlette.background import BackgroundTask
+from datetime import datetime, timedelta, timezone
+import imageio_ffmpeg
+import glob
+import json
+import mimetypes
+import os
+import secrets
+import shutil
+import sys
+import tempfile
+import yt_dlp
+
+
+DOWNLOAD_DIR = os.environ.get("VIDGRAB_DOWNLOAD_DIR") or os.path.join(os.path.expanduser("~"), "Downloads")
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+if getattr(sys, "frozen", False):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+ADS_CONFIG_PATH = os.environ.get("VIDGRAB_ADS_CONFIG") or os.path.join(BASE_DIR, "ads_config.json")
+DOWNLOAD_LOG_PATH = os.environ.get("VIDGRAB_DOWNLOAD_LOG") or os.path.join(BASE_DIR, "downloads_log.json")
+
+app = FastAPI()
+security = HTTPBasic()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Default ads config ──────────────────────────────────────────────────────
+DEFAULT_ADS_CONFIG = {
+    "admin_password": "admin123",
+    "top_banner": {
+        "enabled": False,
+        "code": ""
+    },
+    "right_banner": {
+        "enabled": False,
+        "code": ""
+    },
+    "bottom_banner": {
+        "enabled": False,
+        "code": ""
+    },
+    "redirect_ads": {
+        "enabled": False,
+        "urls": [],
+        "delay_ms": 1000
+    },
+    "side_banner_left": {
+        "enabled": False,
+        "code": ""
+    },
+    "side_banner_right": {
+        "enabled": False,
+        "code": ""
+    }
+}
+
+
+def load_ads_config() -> dict:
+    if not os.path.exists(ADS_CONFIG_PATH):
+        save_ads_config(DEFAULT_ADS_CONFIG)
+        return DEFAULT_ADS_CONFIG.copy()
+    try:
+        with open(ADS_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return DEFAULT_ADS_CONFIG.copy()
+
+
+def save_ads_config(config: dict):
+    with open(ADS_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+
+def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    config = load_ads_config()
+    correct_password = config.get("admin_password", "admin123")
+    is_valid = secrets.compare_digest(
+        credentials.password.encode("utf-8"),
+        correct_password.encode("utf-8")
+    )
+    if not is_valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials
+
+
+# ── Download Tracking System ────────────────────────────────────────────────
+
+def detect_platform(url: str) -> str:
+    """Detect video platform from URL."""
+    url_lower = url.lower()
+    if "youtu.be" in url_lower or "youtube.com" in url_lower:
+        return "YouTube"
+    if "instagram.com" in url_lower:
+        return "Instagram"
+    if "tiktok.com" in url_lower:
+        return "TikTok"
+    if "twitter.com" in url_lower or "x.com" in url_lower:
+        return "Twitter/X"
+    if "facebook.com" in url_lower or "fb.watch" in url_lower:
+        return "Facebook"
+    return "Other"
+
+
+def load_download_log() -> list:
+    """Load download history from JSON file."""
+    if not os.path.exists(DOWNLOAD_LOG_PATH):
+        return []
+    try:
+        with open(DOWNLOAD_LOG_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_download_log(log: list):
+    """Save download history to JSON file."""
+    with open(DOWNLOAD_LOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(log, f, indent=2, ensure_ascii=False)
+
+
+def get_file_size_bytes(path: str) -> int | None:
+    """Get file size in bytes."""
+    try:
+        return os.path.getsize(path)
+    except Exception:
+        return None
+
+
+def format_file_size(size_bytes: int | None) -> str:
+    """Format bytes to human readable size."""
+    if not size_bytes:
+        return "N/A"
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
+
+
+def log_download(
+    url: str,
+    title: str,
+    quality: str,
+    file_size: int | None = None,
+    client_ip: str | None = None,
+):
+    """Log a download event to the JSON file."""
+    log = load_download_log()
+    entry = {
+        "id": len(log) + 1,
+        "url": url,
+        "platform": detect_platform(url),
+        "title": title or "Unknown",
+        "quality": quality,
+        "file_size": file_size,
+        "file_size_formatted": format_file_size(file_size),
+        "client_ip": client_ip,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    log.append(entry)
+    # Keep log manageable — last 10,000 entries max
+    if len(log) > 10000:
+        log = log[-10000:]
+    save_download_log(log)
+    return entry
+
+
+# ── Models ──────────────────────────────────────────────────────────────────
+class VideoRequest(BaseModel):
+    url: str
+    quality: str = "best"
+
+
+class AdsConfigUpdate(BaseModel):
+    top_banner: dict | None = None
+    right_banner: dict | None = None
+    bottom_banner: dict | None = None
+    redirect_ads: dict | None = None
+    admin_password: str | None = None
+    side_banner_left: dict | None = None
+    side_banner_right: dict | None = None
+
+
+# ── Helpers ─────────────────────────────────────────────────────────────────
+def build_download_settings(quality: str):
+    if quality == "mp3_best":
+        return {
+            "format": "bestaudio/best",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                }
+            ],
+        }
+    if quality == "m4a_best":
+        return {
+            "format": "bestaudio[ext=m4a]/bestaudio/best",
+            "postprocessors": [],
+        }
+    if quality == "best":
+        return {
+            "format": "bestvideo+bestaudio/best",
+            "postprocessors": [],
+        }
+    return {
+        "format": f"best[height<={quality}]/bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best",
+        "postprocessors": [],
+    }
+
+
+def sanitize_filename(name: str, max_len: int = 200) -> str:
+    name = "".join(c for c in name if c.isprintable() and c not in '<>:"/\\|?*')
+    name = name.strip().rstrip(".")
+    if len(name) > max_len:
+        name = name[:max_len].rsplit(" ", 1)[0]
+    return name or "video"
+
+
+def build_download_options(quality: str, output_template: str):
+    settings = build_download_settings(quality)
+    opts = {
+        "outtmpl": output_template,
+        "format": settings["format"],
+        "noplaylist": True,
+        "merge_output_format": "mp4",
+        "postprocessors": settings["postprocessors"],
+        "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+        "quiet": False,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
+                "player_skip": ["configs", "webpage"],
+            }
+        },
+        "socket_timeout": 30,
+        "outtmpl_na_placeholder": "video",
+    }
+    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+    if os.path.exists(cookies_path):
+        opts["cookiefile"] = cookies_path
+    return opts
+
+
+def find_latest_file(directory: str) -> str | None:
+    files = [path for path in glob.glob(os.path.join(directory, "*")) if os.path.isfile(path)]
+    if not files:
+        return None
+    return max(files, key=os.path.getmtime)
+
+
+def cleanup_directory(path: str):
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(url, download=download)
+
+
+def get_video_title(url: str) -> str:
+    try:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "socket_timeout": 30,
+            "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+        }
+        cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+        if os.path.exists(cookies_path):
+            ydl_opts["cookiefile"] = cookies_path
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            title = info.get("title") or info.get("fulltitle") or "video"
+            return sanitize_filename(title)
+    except Exception:
+        return "video"
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP from request, handling proxies."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
+# ── Public API Routes ────────────────────────────────────────────────────────
+@app.get("/ads-config")
+def get_public_ads_config():
+    """Public endpoint — returns ads config without admin password."""
+    config = load_ads_config()
+    public = {k: v for k, v in config.items() if k != "admin_password"}
+    return public
+
+
+@app.post("/info")
+def get_video_info(request: VideoRequest):
+    try:
+        ydl_opts = {
+            "quiet": True,
+            "noplaylist": True,
+            "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
+                    "player_skip": ["configs", "webpage"],
+                }
+            },
+            "socket_timeout": 30,
+        }
+        cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+        if os.path.exists(cookies_path):
+            ydl_opts["cookiefile"] = cookies_path
+        info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
+        formats = info.get("formats", [])
+
+        video_qualities = set()
+        for fmt in formats:
+            height = fmt.get("height")
+            vcodec = fmt.get("vcodec", "none")
+            if height and vcodec != "none":
+                video_qualities.add(height)
+
+        sorted_video = sorted(video_qualities, reverse=True)
+        video_options = [{"label": f"{q}p", "value": str(q)} for q in sorted_video]
+        if video_options:
+            video_options.insert(0, {"label": "Best Quality", "value": "best"})
+
+        audio_options = [
+            {"label": "MP3 (Best Quality)", "value": "mp3_best"},
+            {"label": "M4A (Best Quality)", "value": "m4a_best"},
+        ]
+
+        return {
+            "title": info.get("title"),
+            "thumbnail": info.get("thumbnail"),
+            "duration": info.get("duration"),
+            "uploader": info.get("uploader"),
+            "video_qualities": video_options,
+            "audio_qualities": audio_options,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/download")
+def download_video(request: VideoRequest, req: Request):
+    url = request.url
+    quality = request.quality
+    client_ip = get_client_ip(req)
+    try:
+        safe_title = get_video_title(url)
+        ydl_opts = build_download_options(quality, os.path.join(DOWNLOAD_DIR, f"{safe_title}.%(ext)s"))
+        info = extract_with_cookie_fallback(url, ydl_opts, download=True)
+        title = info.get("title", "Unknown")
+
+        # ── Track this download ──
+        downloaded_file = find_latest_file(DOWNLOAD_DIR)
+        file_size = get_file_size_bytes(downloaded_file) if downloaded_file else None
+        log_download(url=url, title=title, quality=quality, file_size=file_size, client_ip=client_ip)
+
+        return {
+            "status": "success",
+            "title": title,
+            "saved_to": DOWNLOAD_DIR,
+            "message": "Downloaded successfully! Saved to your Downloads folder.",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/download-file")
+def download_video_file(
+    url: str = Query(..., description="Video URL to download"),
+    quality: str = Query("best", description="Requested download quality"),
+    req: Request = None,
+):
+    temp_dir = tempfile.mkdtemp(prefix="vidgrab-mobile-")
+    client_ip = get_client_ip(req) if req else "unknown"
+    try:
+        safe_title = get_video_title(url)
+        ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{safe_title}.%(ext)s"))
+        extract_with_cookie_fallback(url, ydl_opts, download=True)
+
+        downloaded_file = find_latest_file(temp_dir)
+        if not downloaded_file:
+            cleanup_directory(temp_dir)
+            raise HTTPException(status_code=500, detail="Download finished but no output file was found.")
+
+        # ── Track this download ──
+        file_size = get_file_size_bytes(downloaded_file)
+        log_download(url=url, title=safe_title, quality=quality, file_size=file_size, client_ip=client_ip)
+
+        ext = os.path.splitext(downloaded_file)[1]
+        final_filename = f"{safe_title}{ext}"
+        media_type = mimetypes.guess_type(downloaded_file)[0] or "application/octet-stream"
+
+        return FileResponse(
+            downloaded_file,
+            media_type=media_type,
+            filename=final_filename,
+            background=BackgroundTask(cleanup_directory, temp_dir),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        cleanup_directory(temp_dir)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ── Admin Routes ─────────────────────────────────────────────────────────────
+@app.get("/api/admin/config")
+def admin_get_config(credentials: HTTPBasicCredentials = Depends(verify_admin)):
+    return load_ads_config()
+
+
+@app.post("/api/admin/config")
+def admin_update_config(
+    update: AdsConfigUpdate,
+    credentials: HTTPBasicCredentials = Depends(verify_admin)
+):
+    config = load_ads_config()
+    if update.top_banner is not None:
+        config["top_banner"] = update.top_banner
+    if update.right_banner is not None:
+        config["right_banner"] = update.right_banner
+    if update.bottom_banner is not None:
+        config["bottom_banner"] = update.bottom_banner
+    if update.redirect_ads is not None:
+        config["redirect_ads"] = update.redirect_ads
+    if update.admin_password is not None and update.admin_password.strip():
+        config["admin_password"] = update.admin_password.strip()
+    if update.side_banner_left is not None:
+        config["side_banner_left"] = update.side_banner_left
+    if update.side_banner_right is not None:
+        config["side_banner_right"] = update.side_banner_right
+    save_ads_config(config)
+    return {"status": "saved"}
+
+
+# ── Download Stats API (NEW) ────────────────────────────────────────────────
+
+PLATFORM_COLORS = {
+    "YouTube": "#FF0000",
+    "Instagram": "#E1306C",
+    "TikTok": "#00F2EA",
+    "Twitter/X": "#1DA1F2",
+    "Facebook": "#1877F2",
+    "Other": "#94a3b8",
+}
+
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+@app.get("/api/admin/stats")
+def admin_get_stats(credentials: HTTPBasicCredentials = Depends(verify_admin)):
+    """Return aggregated download statistics for the admin dashboard."""
+    log = load_download_log()
+    now = datetime.now(timezone.utc)
+
+    # ── Total downloads ──
+    total_downloads = len(log)
+
+    # ── Platform breakdown (sorted by count desc) ──
+    platform_counts: dict[str, int] = {}
+    for entry in log:
+        p = entry.get("platform", "Other")
+        platform_counts[p] = platform_counts.get(p, 0) + 1
+
+    total_platform = total_downloads or 1
+    platform_stats = [
+        {
+            "platform": p,
+            "count": c,
+            "color": PLATFORM_COLORS.get(p, "#94a3b8"),
+            "percentage": round((c / total_platform) * 1000) / 10,
+        }
+        for p, c in sorted(platform_counts.items(), key=lambda x: -x[1])
+    ]
+
+    # ── Daily stats (last 7 days) with day names ──
+    daily_stats = []
+    for i in range(6, -1, -1):
+        date_obj = now - timedelta(days=i)
+        date_str = date_obj.strftime("%Y-%m-%d")
+        day_name = DAY_NAMES[date_obj.weekday()]
+        count = 0
+        for entry in log:
+            ts = entry.get("timestamp", "")
+            if ts and ts[:10] == date_str:
+                count += 1
+        daily_stats.append({"day": day_name, "date": date_str, "downloads": count})
+
+    # ── Today / Week / Month downloads ──
+    today_str = now.strftime("%Y-%m-%d")
+    week_ago_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    month_ago_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    today_downloads = 0
+    week_downloads = 0
+    month_downloads = 0
+    for entry in log:
+        ts = entry.get("timestamp", "")
+        if not ts:
+            continue
+        entry_date = ts[:10]
+        if entry_date == today_str:
+            today_downloads += 1
+        if entry_date >= week_ago_str:
+            week_downloads += 1
+        if entry_date >= month_ago_str:
+            month_downloads += 1
+
+    # ── Recent downloads (last 20) ──
+    sorted_log = sorted(log, key=lambda x: x.get("timestamp", ""), reverse=True)
+    recent = []
+    for entry in sorted_log[:20]:
+        ts = entry.get("timestamp", "")
+        time_ago = ""
+        if ts:
+            try:
+                entry_time = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                time_ago = _format_time_ago(entry_time, now)
+            except Exception:
+                pass
+        recent.append({
+            "id": entry.get("id", 0),
+            "title": entry.get("title", "Unknown"),
+            "platform": entry.get("platform", "Other"),
+            "quality": entry.get("quality", "—"),
+            "size": entry.get("file_size_formatted", "N/A"),
+            "time_ago": time_ago,
+            "timestamp": ts,
+        })
+
+    # ── Total data downloaded ──
+    total_size_bytes = sum(e.get("file_size") or 0 for e in log)
+
+    return {
+        "totalDownloads": total_downloads,
+        "todayDownloads": today_downloads,
+        "weeklyDownloads": week_downloads,
+        "monthlyDownloads": month_downloads,
+        "totalDataBytes": total_size_bytes,
+        "totalDataFormatted": format_file_size(total_size_bytes),
+        "platformStats": platform_stats,
+        "dailyStats": daily_stats,
+        "recentDownloads": recent,
+    }
+
+
+@app.get("/api/admin/downloads")
+def admin_get_downloads(
+    credentials: HTTPBasicCredentials = Depends(verify_admin),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    platform: str | None = Query(None),
+):
+    """Return paginated download history for the admin dashboard."""
+    log = load_download_log()
+
+    # Filter by platform if specified
+    if platform:
+        log = [e for e in log if e.get("platform") == platform]
+
+    # Sort by timestamp descending (newest first)
+    log.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+    total = len(log)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = log[start:end]
+
+    # Format relative time for display
+    for entry in paginated:
+        ts = entry.get("timestamp", "")
+        if ts:
+            try:
+                entry_time = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                entry["time_ago"] = _format_time_ago(entry_time, datetime.now(timezone.utc))
+            except Exception:
+                entry["time_ago"] = ""
+        else:
+            entry["time_ago"] = ""
+
+    return {
+        "downloads": paginated,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "totalPages": (total + limit - 1) // limit,
+    }
+
+
+def _format_time_ago(past: datetime, now: datetime) -> str:
+    """Format a datetime as a human-readable relative time string."""
+    diff = now - past
+    seconds = int(diff.total_seconds())
+    if seconds < 60:
+        return "just now"
+    elif seconds < 3600:
+        return f"{seconds // 60}m ago"
+    elif seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    elif seconds < 604800:
+        return f"{seconds // 86400}d ago"
+    else:
+        return past.strftime("%b %d, %Y")
+
+
+@app.delete("/api/admin/downloads")
+def admin_clear_downloads(credentials: HTTPBasicCredentials = Depends(verify_admin)):
+    """Clear all download history."""
+    save_download_log([])
+    return {"status": "cleared", "message": "Download history cleared"}
+
+
+
+
+# Mount Next.js admin static export (built via `npm run build`)
+OUT_DIR = os.path.join(BASE_DIR, "out")
+if os.path.isdir(OUT_DIR) and os.path.isfile(os.path.join(OUT_DIR, "index.html")):
+    app.mount("/_next", StaticFiles(directory=os.path.join(OUT_DIR, "_next")), name="admin_next")
+    app.mount("/admin", StaticFiles(directory=OUT_DIR, html=True), name="admin")
+
+    # Redirect /admin -> /admin/ (trailing slash required by StaticFiles)
+    @app.get("/admin", include_in_schema=False)
+    def admin_root():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin/")
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

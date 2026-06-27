@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "url": "https://youtu.be/h_D3VFfhvs4?list=RDh_D3VFfhvs4",
+    "platform": "YouTube",
+    "title": "Michael Jackson - Smooth Criminal (Official Video)",
+    "quality": "720",
+    "file_size": 3407872,
+    "file_size_formatted": "3.2 MB",
+    "client_ip": "127.0.0.1",
+    "timestamp": "2026-06-27T09:09:18.085123+00:00"
+  },
+  {
+    "id": 2,
+    "url": "https://youtu.be/h_D3VFfhvs4?list=RDh_D3VFfhvs4",
+    "platform": "YouTube",
+    "title": "Michael Jackson - Smooth Criminal (Official Video)",
+    "quality": "mp3_best",
+    "file_size": 13582764,
+    "file_size_formatted": "13.0 MB",
+    "client_ip": "127.0.0.1",
+    "timestamp": "2026-06-27T09:10:07.327413+00:00"
+  },
+  {
+    "id": 3,
+    "url": "https://youtu.be/h_D3VFfhvs4?list=RDh_D3VFfhvs4",
+    "platform": "YouTube",
+    "title": "Michael Jackson - Smooth Criminal (Official Video)",
+    "quality": "best",
+    "file_size": 23797047,
+    "file_size_formatted": "22.7 MB",
+    "client_ip": "127.0.0.1",
+    "timestamp": "2026-06-27T09:10:26.904686+00:00"
+  }
+]
