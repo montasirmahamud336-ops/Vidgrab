@@ -494,8 +494,23 @@
 
         toast('Please wait — server is preparing your download. Don\'t leave the page.', 'i', true);
 
-        setProgress(4, 100, 'Download starting...');
-        window.location.href = downloadUrl;
+        const resp = await fetch(downloadUrl);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(()=>({}));
+          throw new Error(errData.detail || 'Server refused download');
+        }
+
+        // Server responded — download is starting
+        clearToasts();
+        setProgress(4, 100, 'Download complete');
+
+        const blob = await resp.blob();
+        const disp = resp.headers.get('Content-Disposition') || '';
+        const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
+        const filename = fnMatch ? decodeURIComponent(fnMatch[1]) : 'video.mp4';
+        triggerBlob(blob, filename);
+
+        setTimeout(() => prog.classList.remove('vis'), 1500);
 
       } catch(err) {
         clearToasts();
