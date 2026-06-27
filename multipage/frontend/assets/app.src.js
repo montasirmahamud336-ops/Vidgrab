@@ -480,12 +480,12 @@
 
     // ─── Multi-page Routing ───
     const PAGES = {
-      home:    { title: 'VidGrab Video Downloader',   desc: 'Paste a link, preview the video, and download directly in your browser.' },
-      youtube: { title: 'YouTube Video Downloader',   desc: 'Download any YouTube video in HD quality. Paste the link and start downloading.' },
-      facebook:{ title: 'Facebook Video Downloader',  desc: 'Download Facebook videos in high quality. Paste a Facebook video link to get started.' },
-      instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.' },
-      tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.' },
-      others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.' },
+      home:    { title: 'VidGrab Video Downloader',   desc: 'Paste a link, preview the video, and download directly in your browser.',                    bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
+      youtube: { title: 'YouTube Video Downloader',   desc: 'Download any YouTube video in HD quality. Paste the link and start downloading.',            bg: '#0f0808', acc: '#ff4444', orb1: 'rgba(255,0,0,.25)', orb2: 'rgba(255,0,0,.15)', plat: 'platYoutube' },
+      facebook:{ title: 'Facebook Video Downloader',  desc: 'Download Facebook videos in high quality. Paste a Facebook video link to get started.',     bg: '#081018', acc: '#1877f2', orb1: 'rgba(24,119,242,.25)', orb2: 'rgba(24,119,242,.15)', plat: 'platFacebook' },
+      instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.',          bg: '#0f0808', acc: '#e1306c', orb1: 'rgba(225,48,108,.25)', orb2: 'rgba(188,42,141,.18)', plat: 'platInstagram' },
+      tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.',           bg: '#050505', acc: '#00f2ea', orb1: 'rgba(0,242,234,.2)', orb2: 'rgba(255,0,80,.2)', plat: 'platTiktok' },
+      others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.',              bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
     };
 
     function navigateTo(page) {
@@ -494,6 +494,14 @@
       document.title = info.title + ' — VidGrab';
       $('heroTitle').textContent = info.title;
       $('heroDesc').textContent = info.desc;
+
+      document.documentElement.style.setProperty('--bg', info.bg);
+      document.documentElement.style.setProperty('--acc', info.acc);
+      document.querySelector('.orb-1').style.background = `radial-gradient(circle,${info.orb1},transparent 70%)`;
+      document.querySelector('.orb-2').style.background = `radial-gradient(circle,${info.orb2},transparent 70%)`;
+
+      document.querySelectorAll('#platIcs > .plat-ic').forEach(el => el.style.display = 'none');
+      if (info.plat) $(info.plat).style.display = 'flex';
     }
 
     function handleHash() {
