@@ -326,7 +326,7 @@ def build_download_options(quality: str, output_template: str):
         "no_progress": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "ios"],
+                "player_client": ["ios", "web"],
                 "player_skip": ["configs", "webpage", "js"],
             }
         },
@@ -358,7 +358,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
         err_str = str(e).lower()
         needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden'])
         if needs_cookies:
-            for browser in ['chrome', 'edge', 'firefox', 'brave', 'opera']:
+            for browser in ['firefox', 'chrome', 'edge', 'brave', 'opera']:
                 try:
                     retry_opts = ydl_opts.copy()
                     retry_opts['cookiesfrombrowser'] = (browser,)
@@ -380,7 +380,7 @@ def get_video_title(url: str) -> str:
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "ios"],
+                    "player_client": ["ios", "web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
@@ -443,7 +443,7 @@ def get_video_info(request: VideoRequest):
                 "playlistend": 20,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["web", "ios"],
+                        "player_client": ["ios", "web"],
                         "player_skip": ["configs", "webpage", "js"],
                     }
                 },
@@ -489,7 +489,7 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "ios"],
+                    "player_client": ["ios", "web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
