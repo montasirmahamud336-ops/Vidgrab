@@ -630,7 +630,11 @@ def download_playlist(
         if os.path.exists(cookies_path):
             playlist_opts["cookiefile"] = cookies_path
         info = extract_with_cookie_fallback(url, playlist_opts, download=False)
-        playlist_name = (info.get("title") or "playlist").replace("/", "_").replace(":", "_")[:80]
+        playlist_name = (info.get("title") or "playlist")
+        playlist_name = re.sub(r'[<>:"/\\|?*]', '_', playlist_name)
+        playlist_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', playlist_name).strip()[:80]
+        if not playlist_name:
+            playlist_name = 'playlist'
 
         entries = []
         for entry in info.get("entries", []):
