@@ -574,10 +574,20 @@
     }
 
     window.addEventListener('hashchange', handleHash);
-    document.querySelector('.nav').addEventListener('click', e => {
+
+    const nav = document.querySelector('.nav');
+    const hamB = document.getElementById('hamB');
+
+    function closeNav() { nav.classList.remove('mobile-open'); }
+    function toggleNav() { nav.classList.toggle('mobile-open'); }
+
+    if (hamB) hamB.addEventListener('click', toggleNav);
+
+    nav.addEventListener('click', e => {
       const link = e.target.closest('a[data-page]');
       if (link) {
         e.preventDefault();
+        closeNav();
         const page = link.dataset.page;
         if (page === 'home') {
           history.replaceState(null, '', window.location.pathname);
