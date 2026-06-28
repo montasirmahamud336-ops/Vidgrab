@@ -11,6 +11,7 @@ import glob
 import json
 import mimetypes
 import os
+import re
 import secrets
 from urllib.parse import quote
 import shutil
@@ -393,9 +394,45 @@ def get_public_ads_config():
     return public
 
 
+def is_playlist_url(url: str) -> bool:
+    return bool(re.search(r'(list=|/playlist\?|/playlists/)', url))
+
 @app.post("/info")
 def get_video_info(request: VideoRequest):
     try:
+        is_playlist = is_playlist_url(request.url)
+
+        if is_playlist:
+            playlist_opts = {
+                "quiet": True,
+                "noplaylist": False,
+                "extract_flat": "in_playlist",
+                "skip_download": True,
+                "socket_timeout": 30,
+            }
+            cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+            if os.path.exists(cookies_path):
+                playlist_opts["cookiefile"] = cookies_path
+            info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
+
+            entries = []
+            for entry in info.get("entries", []):
+                if entry and entry.get("id") and entry.get("title"):
+                    entries.append({
+                        "id": entry["id"],
+                        "title": entry["title"],
+                        "duration": entry.get("duration"),
+                        "url": f"https://www.youtube.com/watch?v={entry['id']}",
+                    })
+
+            return {
+                "is_playlist": True,
+                "title": info.get("title", "Playlist"),
+                "uploader": info.get("uploader"),
+                "playlist_count": len(entries),
+                "entries": entries,
+            }
+
         ydl_opts = {
             "quiet": True,
             "noplaylist": True,
@@ -433,6 +470,7 @@ def get_video_info(request: VideoRequest):
         ]
 
         return {
+            "is_playlist": False,
             "title": info.get("title"),
             "thumbnail": info.get("thumbnail"),
             "duration": info.get("duration"),
@@ -554,6 +592,101 @@ def download_video_file(
         media_type=media_type,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
     )
+
+
+@app.get("/download-playlist")
+def download_playlist(
+    url: str = Query(..., description="Playlist URL"),
+    quality: str = Query("best", description="Quality"),
+    req: Request = None,
+):
+    client_ip = get_client_ip(req) if req else "unknown"
+    playlist_name = "playlist"
+
+    try:
+        playlist_opts = {
+            "quiet": True,
+            "noplaylist": False,
+            "extract_flat": "in_playlist",
+            "skip_download": True,
+            "socket_timeout": 30,
+        }
+        cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+        if os.path.exists(cookies_path):
+            playlist_opts["cookiefile"] = cookies_path
+        info = extract_with_cookie_fallback(url, playlist_opts, download=False)
+        playlist_name = (info.get("title") or "playlist").replace("/", "_").replace(":", "_")[:80]
+
+        entries = []
+        for entry in info.get("entries", []):
+            if entry and entry.get("id"):
+                entries.append(entry["id"])
+
+        if not entries:
+            raise HTTPException(status_code=400, detail="No videos found in playlist")
+
+        max_videos = 20
+        if len(entries) > max_videos:
+            entries = entries[:max_videos]
+
+        tmp_dir = tempfile.mkdtemp(prefix="vidgrab_playlist_")
+        video_files = []
+
+        fmt = "bestvideo+bestaudio/best" if quality != "mp3_best" else "bestaudio/best"
+
+        for i, vid_id in enumerate(entries):
+            video_url = f"https://www.youtube.com/watch?v={vid_id}"
+            out_tpl = os.path.join(tmp_dir, f"{i+1:02d}_%(title)s.%(ext)s")
+            dl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "no_progress": True,
+                "format": fmt,
+                "outtmpl": out_tpl,
+                "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+                "merge_output_format": "mp4",
+                "socket_timeout": 30,
+            }
+            if quality == "mp3_best":
+                dl_opts.update({"format": "bestaudio/best", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]})
+            if cookies_path and os.path.exists(cookies_path):
+                dl_opts["cookiefile"] = cookies_path
+
+            try:
+                extract_with_cookie_fallback(video_url, dl_opts, download=True)
+                for f in os.listdir(tmp_dir):
+                    fp = os.path.join(tmp_dir, f)
+                    if os.path.isfile(fp) and fp not in video_files:
+                        video_files.append(fp)
+            except Exception:
+                continue
+
+        if not video_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise HTTPException(status_code=400, detail="Failed to download any videos from the playlist")
+
+        zip_path = os.path.join(tmp_dir, f"{playlist_name}.zip")
+        shutil.make_archive(zip_path.replace(".zip", ""), "zip", tmp_dir)
+        zip_size = os.path.getsize(zip_path)
+
+        def cleanup():
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        encoded_name = quote(f"{playlist_name}.zip", safe="")
+        log_download(url=url, title=playlist_name, quality=quality, file_size=zip_size, client_ip=client_ip)
+
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=f"{playlist_name}.zip",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"},
+            background=BackgroundTask(cleanup),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ── Admin Routes ─────────────────────────────────────────────────────────────

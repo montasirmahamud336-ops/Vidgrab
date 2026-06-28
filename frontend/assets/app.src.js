@@ -391,28 +391,67 @@
         }
         
         const data = await resp.json();
-        vTitle.textContent = data.title || 'Video';
         videoData = data;
 
-        if (data.thumbnail) {
-          showThumbImage(data.thumbnail);
-        } else {
+        const singleOpts = document.getElementById('singleOpts');
+        const plSection = document.getElementById('plSection');
+        const dlBtn = document.getElementById('dlB');
+
+        if (data.is_playlist) {
+          singleOpts.style.display = 'none';
+          plSection.style.display = 'block';
+          vTitle.textContent = data.title || 'Playlist';
+          vPlat.textContent = platform.name + ' Playlist';
           setThumbState('placeholder');
-        }
+          document.getElementById('thPh').querySelector('span').textContent = `${data.playlist_count} videos`;
+          document.getElementById('plTitle').textContent = data.title || 'Playlist';
+          document.getElementById('plMeta').textContent = `${data.playlist_count} videos`;
 
-        if (data.video_qualities && data.video_qualities.length > 0) {
-          qChips.innerHTML = '';
-          data.video_qualities.forEach(q => {
-            const btn = document.createElement('button');
-            btn.className = `chip${q.value === 'best' ? ' on' : ''}`;
-            btn.dataset.q = q.value;
-            btn.textContent = q.label;
-            qChips.appendChild(btn);
+          const list = document.getElementById('plList');
+          list.innerHTML = '';
+          data.entries.forEach((entry, i) => {
+            const item = document.createElement('div');
+            item.className = 'pl-item';
+            const dur = entry.duration ? `${Math.floor(entry.duration / 60)}:${String(entry.duration % 60).padStart(2, '0')}` : '';
+            item.innerHTML = `
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span class="pl-idx">${i + 1}</span>
+              <span class="pl-ttl">${entry.title}</span>
+              <span class="pl-dur">${dur}</span>
+            `;
+            list.appendChild(item);
           });
-          quality = data.video_qualities[0].value;
-        }
 
-        toast('Video found successfully', 's');
+          dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Playlist (ZIP)';
+          quality = 'best';
+          toast(`Playlist found: ${data.playlist_count} videos`, 's');
+        } else {
+          singleOpts.style.display = 'block';
+          plSection.style.display = 'none';
+          vTitle.textContent = data.title || 'Video';
+          dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          document.getElementById('thPh').querySelector('span').textContent = 'No preview';
+
+          if (data.thumbnail) {
+            showThumbImage(data.thumbnail);
+          } else {
+            setThumbState('placeholder');
+          }
+
+          if (data.video_qualities && data.video_qualities.length > 0) {
+            qChips.innerHTML = '';
+            data.video_qualities.forEach(q => {
+              const btn = document.createElement('button');
+              btn.className = `chip${q.value === 'best' ? ' on' : ''}`;
+              btn.dataset.q = q.value;
+              btn.textContent = q.label;
+              qChips.appendChild(btn);
+            });
+            quality = data.video_qualities[0].value;
+          }
+
+          toast('Video found successfully', 's');
+        }
 
       } catch(err) {
         toast(err.message || 'Failed to find video', 'e');
@@ -493,6 +532,25 @@
         }
 
         setProgress(3, 60, 'Processing...');
+
+        if (videoData?.is_playlist) {
+          const plUrl = `${getApiBaseUrl()}/download-playlist?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(q)}`;
+          if (isMobileDevice()) {
+            window.location.href = plUrl;
+          } else {
+            const a = document.createElement('a');
+            a.href = plUrl;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }
+          setProgress(4, 100, 'Download started');
+          setTimeout(() => prog.classList.remove('vis'), 1500);
+          toast('Playlist download started.', 's');
+          dlB.disabled = false;
+          return;
+        }
 
         const params = new URLSearchParams({ url, quality: q });
         if (videoData?.title) params.set('title', videoData.title);
