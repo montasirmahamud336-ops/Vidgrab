@@ -1,11 +1,11 @@
-const CACHE_NAME = "vidgrab-v2";
+const CACHE_NAME = "vidgrab-v3";
 
 const STATIC_ASSETS = [
   "/",
   "/assets/app-logo.png",
-  "/assets/app.src.js",
-  "/assets/app-config.js",
-  "/manifest.json",
+  "/assets/app.src.js?v=3",
+  "/assets/app-config.js?v=3",
+  "/manifest.json?v=3",
 ];
 
 self.addEventListener("install", (event) => {

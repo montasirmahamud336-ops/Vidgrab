@@ -396,7 +396,7 @@
       try { new URL(url); } catch(e) { toast('Invalid URL format', 'e'); return; }
 
       const pageErr = validatePageUrl(url);
-      if (pageErr) { toast(pageErr, 'e'); return; }
+      if (pageErr) toast(pageErr, 'w');
 
       platform = detectPlatform(url);
       checkB.disabled = true;
