@@ -10,6 +10,10 @@ multipage/ads_config.json
 multipage/downloads_log.json
 multipage/daily_free_log.json
 
+# Cache
+.info_cache/
+multipage/.info_cache/
+
 # Backup
 _root_backup/
 
