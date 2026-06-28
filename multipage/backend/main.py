@@ -652,6 +652,7 @@ def download_playlist(
                 "quiet": True,
                 "no_warnings": True,
                 "no_progress": True,
+                "noplaylist": True,
                 "format": fmt,
                 "outtmpl": out_tpl,
                 "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
@@ -664,11 +665,17 @@ def download_playlist(
                 dl_opts["cookiefile"] = cookies_path
 
             try:
-                extract_with_cookie_fallback(video_url, dl_opts, download=True)
-                for f in os.listdir(tmp_dir):
-                    fp = os.path.join(tmp_dir, f)
-                    if os.path.isfile(fp) and fp not in video_files:
-                        video_files.append(fp)
+                result = extract_with_cookie_fallback(video_url, dl_opts, download=True)
+                if result and result.get("requested_downloads"):
+                    for dl in result["requested_downloads"]:
+                        fp = dl.get("filepath")
+                        if fp and os.path.isfile(fp) and fp not in video_files:
+                            video_files.append(fp)
+                else:
+                    for f in os.listdir(tmp_dir):
+                        fp = os.path.join(tmp_dir, f)
+                        if os.path.isfile(fp) and fp not in video_files:
+                            video_files.append(fp)
             except Exception:
                 continue
 
