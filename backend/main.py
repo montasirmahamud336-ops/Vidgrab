@@ -364,8 +364,24 @@ def cleanup_directory(path: str):
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        return ydl.extract_info(url, download=download)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=download)
+    except Exception as e:
+        err_str = str(e).lower()
+        # If bot/sign-in error and no browser cookies tried yet, retry with cookiesfrombrowser
+        if 'sign in' in err_str or 'bot' in err_str or 'confirm' in err_str:
+            for browser in ['chrome', 'edge', 'firefox', 'brave', 'opera']:
+                try:
+                    retry_opts = ydl_opts.copy()
+                    retry_opts['cookiesfrombrowser'] = (browser,)
+                    # remove cookiefile to avoid conflicts
+                    retry_opts.pop('cookiefile', None)
+                    with yt_dlp.YoutubeDL(retry_opts) as ydl:
+                        return ydl.extract_info(url, download=download)
+                except Exception:
+                    continue
+        raise e
 
 
 def get_video_title(url: str) -> str:
