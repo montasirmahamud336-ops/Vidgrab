@@ -339,7 +339,7 @@ def build_download_options(quality: str, output_template: str):
         "no_progress": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web"],
+                "player_client": ["web", "ios"],
                 "player_skip": ["configs", "webpage", "js"],
             }
         },
@@ -369,13 +369,12 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
             return ydl.extract_info(url, download=download)
     except Exception as e:
         err_str = str(e).lower()
-        # If bot/sign-in error and no browser cookies tried yet, retry with cookiesfrombrowser
-        if 'sign in' in err_str or 'bot' in err_str or 'confirm' in err_str:
+        needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden'])
+        if needs_cookies:
             for browser in ['chrome', 'edge', 'firefox', 'brave', 'opera']:
                 try:
                     retry_opts = ydl_opts.copy()
                     retry_opts['cookiesfrombrowser'] = (browser,)
-                    # remove cookiefile to avoid conflicts
                     retry_opts.pop('cookiefile', None)
                     with yt_dlp.YoutubeDL(retry_opts) as ydl:
                         return ydl.extract_info(url, download=download)
@@ -394,7 +393,7 @@ def get_video_title(url: str) -> str:
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web"],
+                    "player_client": ["web", "ios"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
@@ -435,7 +434,14 @@ def is_playlist_url(url: str) -> bool:
     if re.search(r'/playlist\?|/playlists/', url):
         return True
     # any URL with list= parameter
-    return bool(re.search(r'list=', url))
+    m = re.search(r'list=([a-zA-Z0-9_-]+)', url)
+    if m:
+        lid = m.group(1)
+        # private playlists (WL=Watch Later, LL=Liked, LM=Liked Music) — always fail
+        if lid.startswith(('WL', 'LL', 'LM')):
+            return False
+        return True
+    return False
 
 @app.post("/info")
 def get_video_info(request: VideoRequest):
@@ -453,7 +459,7 @@ def get_video_info(request: VideoRequest):
                 "playlistend": 20,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["web"],
+                        "player_client": ["web", "ios"],
                         "player_skip": ["configs", "webpage", "js"],
                     }
                 },
@@ -500,7 +506,7 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web"],
+                    "player_client": ["web", "ios"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },

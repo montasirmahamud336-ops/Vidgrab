@@ -367,7 +367,9 @@
     function isRealPlaylistUrl(url) {
       if (!/youtu\.?be|youtube\.com/.test(url)) return false;
       if (/\/playlist\?/.test(url)) return true;
-      return /list=/.test(url);
+      const m = url.match(/list=([a-zA-Z0-9_-]+)/);
+      if (m) return !m[1].startsWith('WL') && !m[1].startsWith('LL') && !m[1].startsWith('LM');
+      return false;
     }
 
     function getUrlTypeInfo(url) {
