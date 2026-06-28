@@ -582,6 +582,56 @@
       }
     });
 
+    // ─── PWA Install Prompt ───
+    let deferredPrompt = null;
+    const PWA_KEY = 'vidgrab-pwa-dismissed';
+
+    function showInstallBanner() {
+      if (!deferredPrompt) return;
+      if (localStorage.getItem(PWA_KEY)) return;
+
+      const existing = document.getElementById('pwaBanner');
+      if (existing) existing.remove();
+
+      const banner = document.createElement('div');
+      banner.id = 'pwaBanner';
+      banner.style.cssText =
+        'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0f172a;border-top:1px solid #334155;padding:12px 16px;display:flex;align-items:center;gap:12px;font-family:Inter,sans-serif;';
+
+      banner.innerHTML = `
+        <div style="flex:1;color:#e2e8f0;font-size:14px;line-height:1.4">
+          <div style="font-weight:600;font-size:15px">Install VidGrab</div>
+          <div style="color:#94a3b8;font-size:13px">Add to your Home Screen for a faster experience</div>
+        </div>
+        <button id="pwaInstallBtn" style="background:#38bdf8;color:#0f172a;border:none;border-radius:8px;padding:8px 20px;font-weight:600;font-size:14px;cursor:pointer">Install</button>
+        <button id="pwaDismissBtn" style="background:transparent;color:#64748b;border:none;font-size:22px;cursor:pointer;line-height:1">&times;</button>
+      `;
+
+      document.body.appendChild(banner);
+
+      document.getElementById('pwaInstallBtn').onclick = () => {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(() => { deferredPrompt = null; banner.remove(); });
+      };
+      document.getElementById('pwaDismissBtn').onclick = () => {
+        localStorage.setItem(PWA_KEY, '1');
+        banner.remove();
+      };
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      setTimeout(showInstallBanner, 2000);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredPrompt = null;
+      localStorage.removeItem(PWA_KEY);
+      const b = document.getElementById('pwaBanner');
+      if (b) b.remove();
+    });
+
     // ─── Init ───
     updateBadge();
     loadAds();
