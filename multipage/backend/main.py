@@ -349,6 +349,14 @@ def find_latest_file(directory: str) -> str | None:
 def cleanup_directory(path: str):
     shutil.rmtree(path, ignore_errors=True)
 
+def cleanup_partial_downloads(directory: str):
+    for fname in os.listdir(directory):
+        if fname.endswith('.part') or fname.endswith('.ytdl'):
+            try:
+                os.remove(os.path.join(directory, fname))
+            except Exception:
+                pass
+
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
     try:
@@ -538,6 +546,8 @@ def download_video(request: VideoRequest, req: Request):
     quality = request.quality
     client_ip = get_client_ip(req)
     try:
+        cleanup_partial_downloads(DOWNLOAD_DIR)
+
         safe_title = get_video_title(url)
         ydl_opts = build_download_options(quality, os.path.join(DOWNLOAD_DIR, f"{safe_title}.%(ext)s"))
         info = extract_with_cookie_fallback(url, ydl_opts, download=True)
