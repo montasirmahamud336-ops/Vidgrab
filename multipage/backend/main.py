@@ -89,6 +89,13 @@ def load_ads_config() -> dict:
             data = json.load(f)
         merged = DEFAULT_ADS_CONFIG.copy()
         merged.update(data)
+
+        # migrate old banner fields to new fields
+        if "right_banner" in data and data["right_banner"].get("enabled") and not merged["side_banner_right"]["enabled"]:
+            merged["side_banner_right"] = data["right_banner"].copy()
+        if "left_banner" in data and data["left_banner"].get("enabled") and not merged["side_banner_left"]["enabled"]:
+            merged["side_banner_left"] = data["left_banner"].copy()
+
         return merged
     except Exception:
         return DEFAULT_ADS_CONFIG.copy()
