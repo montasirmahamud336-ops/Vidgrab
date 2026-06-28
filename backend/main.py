@@ -19,7 +19,8 @@ import sys
 import tempfile
 import time
 import yt_dlp
-import subprocess
+import subprocess as sp
+import threading
 import asyncio
 
 
@@ -290,7 +291,7 @@ def build_download_settings(quality: str):
         }
     if quality == "best":
         return {
-            "format": "bestvideo+bestaudio/best",
+            "format": "best/bestvideo+bestaudio",
             "postprocessors": [],
         }
     return {
@@ -324,6 +325,7 @@ def build_download_options(quality: str, output_template: str):
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
         "quiet": True,
         "no_warnings": True,
+        "no_progress": True,
         "extractor_args": {
             "youtube": {
                 "player_client": ["web", "android"],
@@ -485,47 +487,83 @@ def download_video_file(
     title: str = Query(None, description="Optional video title (skips extra yt-dlp info call)"),
     req: Request = None,
 ):
-    temp_dir = tempfile.mkdtemp(prefix="vidgrab-")
     client_ip = get_client_ip(req) if req else "unknown"
-    try:
-        safe_title = sanitize_filename(title) if title else get_video_title(url)
-        short_name = short_filename(safe_title)
-        ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{short_name}.%(ext)s"))
-        cached_path = get_cached_info_path(url)
-        if cached_path:
-            ydl_opts["load_info_filename"] = cached_path
-        extract_with_cookie_fallback(url, ydl_opts, download=True)
+    safe_title = sanitize_filename(title) if title else get_video_title(url)
 
-        downloaded_file = find_latest_file(temp_dir)
-        if not downloaded_file:
-            cleanup_directory(temp_dir)
-            raise HTTPException(status_code=500, detail="Download finished but no output file was found.")
+    if quality == "mp3_best":
+        ext = ".mp3"
+    elif quality == "m4a_best":
+        ext = ".m4a"
+    else:
+        ext = ".mp4"
 
-        file_size = get_file_size_bytes(downloaded_file)
-        log_download(url=url, title=safe_title, quality=quality, file_size=file_size, client_ip=client_ip)
-        ads_cfg = load_ads_config().get("redirect_ads", {})
-        if ads_cfg.get("daily_free_download", False):
-            free_log = load_daily_free_log()
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            free_log[client_ip] = today
-            save_daily_free_log(free_log)
+    final_filename = f"{safe_title}{ext}"
+    media_type = mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
+    encoded_fn = quote(final_filename, safe='')
 
-        ext = os.path.splitext(downloaded_file)[1]
-        final_filename = f"{safe_title}{ext}"
-        media_type = mimetypes.guess_type(downloaded_file)[0] or "application/octet-stream"
+    settings = build_download_settings(quality)
 
-        encoded_fn = quote(final_filename, safe='')
-        return FileResponse(
-            downloaded_file,
-            media_type=media_type,
-            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
-            background=BackgroundTask(cleanup_directory, temp_dir),
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        cleanup_directory(temp_dir)
-        raise HTTPException(status_code=400, detail=str(exc))
+    cmd = [
+        sys.executable, "-m", "yt_dlp",
+        "--no-playlist",
+        "--no-progress",
+        "-f", settings["format"],
+        "-o", "-",
+        "--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe(),
+    ]
+
+    if quality not in ("mp3_best", "m4a_best"):
+        cmd.extend(["--merge-output-format", "mp4"])
+
+    if quality == "mp3_best":
+        cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
+
+    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+    if os.path.exists(cookies_path):
+        cmd.extend(["--cookies", cookies_path])
+
+    cached_path = get_cached_info_path(url)
+    if cached_path:
+        cmd.extend(["--load-info-json", cached_path])
+
+    cmd.append(url)
+
+    def generate():
+        process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        stderr_lines = []
+
+        def read_stderr():
+            for line in iter(process.stderr.readline, b""):
+                stderr_lines.append(line)
+
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+
+        try:
+            for chunk in iter(lambda: process.stdout.read(65536), b""):
+                yield chunk
+        finally:
+            process.stdout.close()
+            process.wait(timeout=30)
+            stderr_thread.join(timeout=5)
+
+            if process.returncode != 0:
+                error_text = b"".join(stderr_lines).decode("utf-8", errors="replace")
+                raise RuntimeError(f"yt-dlp failed (code {process.returncode}): {error_text[:500]}")
+
+    log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
+    ads_cfg = load_ads_config().get("redirect_ads", {})
+    if ads_cfg.get("daily_free_download", False):
+        free_log = load_daily_free_log()
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        free_log[client_ip] = today
+        save_daily_free_log(free_log)
+
+    return StreamingResponse(
+        generate(),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
+    )
 
 
 # ── Cookie Collection ─────────────────────────────────────────────────────────
