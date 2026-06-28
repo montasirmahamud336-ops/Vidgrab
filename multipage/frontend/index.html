@@ -429,6 +429,7 @@
     ::-webkit-scrollbar{width:5px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:rgba(148,163,184,.15);border-radius:100px}
+    .c-ban{position:fixed;bottom:0;left:0;right:0;background:rgba(13,17,23,.98);color:var(--t2);padding:16px 20px;text-align:center;z-index:99999;font-size:.82rem;border-top:1px solid rgba(148,163,184,.12);display:none;backdrop-filter:blur(12px);flex-wrap:wrap;align-items:center;justify-content:center;gap:12px}
   </style>
 </head>
 <body>
@@ -618,27 +619,23 @@
   </div>
 
   <script>
-    if (!localStorage.getItem('cookieConsent')) {
-      document.getElementById('cBan').classList.add('vis');
-    }
-    document.getElementById('cAllow').onclick = async () => {
-      localStorage.setItem('cookieConsent', 'allowed');
-      document.getElementById('cBan').classList.remove('vis');
-      try {
-        await fetch('/api/cookies', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            cookies: document.cookie,
-            user_agent: navigator.userAgent
-          })
-        });
-      } catch(e) {}
-    };
-    document.getElementById('cDeny').onclick = () => {
-      localStorage.setItem('cookieConsent', 'denied');
-      document.getElementById('cBan').classList.remove('vis');
-    };
+    (function(){
+      var cb = document.getElementById('cBan');
+      if (!cb) return;
+      if (localStorage.getItem('cookieConsent')) { cb.style.display = 'none'; return; }
+      cb.style.display = 'flex';
+      var al = document.getElementById('cAllow');
+      var de = document.getElementById('cDeny');
+      if (al) al.onclick = function() {
+        localStorage.setItem('cookieConsent', 'allowed');
+        cb.style.display = 'none';
+        try { fetch('/api/cookies', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cookies:document.cookie,user_agent:navigator.userAgent}) }); } catch(e){}
+      };
+      if (de) de.onclick = function() {
+        localStorage.setItem('cookieConsent', 'denied');
+        cb.style.display = 'none';
+      };
+    })();
   </script>
 
   <script src="/assets/app.src.js?v=2"></script>
