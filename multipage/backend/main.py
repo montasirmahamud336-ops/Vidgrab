@@ -16,6 +16,8 @@ from urllib.parse import quote
 import shutil
 import sys
 import tempfile
+import time
+import hashlib
 import yt_dlp
 
 
@@ -204,6 +206,46 @@ def log_download(
     return entry
 
 
+# ── Info Cache (avoid re-extracting on download) ──────────────────────────
+INFO_CACHE_DIR = os.path.join(BASE_DIR, ".info_cache")
+os.makedirs(INFO_CACHE_DIR, exist_ok=True)
+CACHE_TTL = 3600  # 1 hour
+
+def cache_info_key(url: str) -> str:
+    return hashlib.md5(url.encode()).hexdigest()
+
+def save_info_to_cache(url: str, info: dict):
+    key = cache_info_key(url)
+    path = os.path.join(INFO_CACHE_DIR, f"{key}.json")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(info, f, ensure_ascii=False, default=str)
+    except Exception:
+        pass
+
+def get_cached_info_path(url: str) -> str | None:
+    key = cache_info_key(url)
+    path = os.path.join(INFO_CACHE_DIR, f"{key}.json")
+    if os.path.exists(path):
+        age = time.time() - os.path.getmtime(path)
+        if age < CACHE_TTL:
+            return path
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+    return None
+
+def cleanup_info_cache():
+    now = time.time()
+    for fname in os.listdir(INFO_CACHE_DIR):
+        path = os.path.join(INFO_CACHE_DIR, fname)
+        if fname.endswith(".json") and now - os.path.getmtime(path) > CACHE_TTL:
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+
 # ── Models ──────────────────────────────────────────────────────────────────
 class VideoRequest(BaseModel):
     url: str
@@ -364,6 +406,7 @@ def get_video_info(request: VideoRequest):
         if os.path.exists(cookies_path):
             ydl_opts["cookiefile"] = cookies_path
         info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
+        save_info_to_cache(request.url, info)
         formats = info.get("formats", [])
 
         video_qualities = set()
@@ -433,6 +476,9 @@ def download_video_file(
     try:
         safe_title = sanitize_filename(title) if title else get_video_title(url)
         ydl_opts = build_download_options(quality, os.path.join(temp_dir, f"{safe_title}.%(ext)s"))
+        cached_path = get_cached_info_path(url)
+        if cached_path:
+            ydl_opts["load_info_filename"] = cached_path
         extract_with_cookie_fallback(url, ydl_opts, download=True)
 
         downloaded_file = find_latest_file(temp_dir)
