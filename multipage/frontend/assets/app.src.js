@@ -8,6 +8,7 @@
     let platform = null;
     let videoData = null;
     let adsConfig = null;
+    let currentPage = 'home';
     const API_STORAGE_KEY = 'vidgrab-api-base-url';
     const BUILT_IN_API_BASE = (((window.VIDGRAB_CONFIG || {}).apiBaseUrl) || '').trim().replace(/\/+$/, '');
     const DEFAULT_API_BASE = BUILT_IN_API_BASE || window.location.origin;
@@ -351,10 +352,43 @@
     // ─── CHECK VIDEO ───
     checkB.addEventListener('click', checkVideo);
 
+    function getUrlTypeInfo(url) {
+      const isYTpl = /list=|playlist\?/.test(url) && /youtu\.?be|youtube\.com/.test(url);
+      const p = detectPlatform(url);
+      return { isPlaylist: isYTpl, platform: p ? p.name.toLowerCase() : 'other' };
+    }
+
+    function validatePageUrl(url) {
+      const info = getUrlTypeInfo(url);
+      const page = currentPage;
+
+      if (page === 'home') return null;
+
+      if (page === 'playlist') {
+        if (!info.isPlaylist) return 'This is a single video link. Use <b>Home</b> or the matching platform tab.';
+        if (info.platform !== 'youtube') return 'Only YouTube playlists are supported. Use the <b>Home</b> tab for other platforms.';
+        return null;
+      }
+
+      if (page === 'youtube') {
+        if (info.isPlaylist) return 'This is a playlist link. Switch to the <b>Playlist</b> tab to download.';
+        if (info.platform !== 'youtube') return `This looks like a ${info.platform} link. Use the <b>${info.platform.charAt(0).toUpperCase() + info.platform.slice(1)}</b> tab or <b>Home</b>.`;
+        return null;
+      }
+
+      if (page === info.platform) return null;
+
+      const pageNames = { youtube:'YouTube', facebook:'Facebook', instagram:'Instagram', tiktok:'TikTok', others:'Others' };
+      return `This looks like a <b>${info.platform}</b> link. Use the <b>${pageNames[info.platform] || info.platform}</b> tab or <b>Home</b>.`;
+    }
+
     async function checkVideo() {
       const url = urlIn.value.trim();
       if (!url) { toast('Please paste a video link first', 'e'); urlIn.focus(); return; }
       try { new URL(url); } catch(e) { toast('Invalid URL format', 'e'); return; }
+
+      const pageErr = validatePageUrl(url);
+      if (pageErr) { toast(pageErr, 'e'); return; }
 
       platform = detectPlatform(url);
       checkB.disabled = true;
@@ -610,6 +644,7 @@
     };
 
     function navigateTo(page) {
+      currentPage = page === 'home' ? 'home' : page;
       document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
       const info = PAGES[page] || PAGES.home;
       document.title = info.title + ' — VidGrab';
@@ -627,7 +662,8 @@
 
     function handleHash() {
       const page = location.hash.replace('#', '') || 'home';
-      navigateTo(PAGES[page] ? page : 'home');
+      currentPage = PAGES[page] ? page : 'home';
+      navigateTo(currentPage);
     }
 
     window.addEventListener('hashchange', handleHash);
