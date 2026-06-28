@@ -4,10 +4,20 @@
   "description": "Download videos from YouTube, Facebook, Instagram, TikTok, Twitter and more",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
   "background_color": "#06080f",
   "theme_color": "#38bdf8",
   "orientation": "any",
   "scope": "/",
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "icons": [
     {
       "src": "/assets/app-logo.png",

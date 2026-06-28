@@ -42,6 +42,8 @@
       return loadApiBaseUrl();
     }
 
+    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     function getMobileDownloadUrl(url, quality) {
       const params = new URLSearchParams({ url, quality });
       return `${getApiBaseUrl()}/download-file?${params.toString()}`;
@@ -54,6 +56,10 @@
       }
 
       window.open(downloadUrl, '_blank', 'noopener');
+    }
+
+    function isMobileDevice() {
+      return isMobile || isNativeAndroidApp();
     }
 
     // ─── Platform Detection ───
@@ -482,11 +488,11 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        if (isNativeAndroidApp()) {
-          await openNativeDownload(downloadUrl);
-          setProgress(4, 100, 'Ready');
+        if (isMobileDevice()) {
+          window.location.href = downloadUrl;
+          setProgress(4, 100, 'Download started');
           setTimeout(() => prog.classList.remove('vis'), 1500);
-          toast('Android download opened.', 's');
+          toast('Download started.', 's');
           return;
         }
 
