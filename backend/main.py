@@ -458,16 +458,28 @@ def get_video_info(request: VideoRequest):
                 "skip_download": True,
                 "socket_timeout": 30,
                 "playlistend": 20,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["configs", "webpage", "js"],
+                    }
+                },
             }
             cookies_path = os.path.join(BASE_DIR, "cookies.txt")
             if os.path.exists(cookies_path):
                 playlist_opts["cookiefile"] = cookies_path
             try:
                 info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
-            except Exception as pl_exc:
-                if is_pure_playlist:
-                    raise HTTPException(status_code=400, detail=f"Failed to load playlist: {pl_exc}")
-                is_playlist = False
+            except Exception:
+                # Retry once without extract_flat (some playlists fail with flat extraction)
+                try:
+                    playlist_opts2 = playlist_opts.copy()
+                    playlist_opts2.pop("extract_flat", None)
+                    info = extract_with_cookie_fallback(request.url, playlist_opts2, download=False)
+                except Exception as pl_exc:
+                    if is_pure_playlist:
+                        raise HTTPException(status_code=400, detail=f"Failed to load playlist: {pl_exc}")
+                    is_playlist = False
 
         if is_playlist:
             raw_count = info.get("playlist_count") or len(info.get("entries", []))
