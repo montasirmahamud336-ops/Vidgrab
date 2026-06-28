@@ -85,7 +85,10 @@ def load_ads_config() -> dict:
         return DEFAULT_ADS_CONFIG.copy()
     try:
         with open(ADS_CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        merged = DEFAULT_ADS_CONFIG.copy()
+        merged.update(data)
+        return merged
     except Exception:
         return DEFAULT_ADS_CONFIG.copy()
 

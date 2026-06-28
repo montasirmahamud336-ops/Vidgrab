@@ -255,29 +255,39 @@
       } catch(e) {}
     }
 
+    function renderAdCode(container, code) {
+      if (!container || !code) return;
+      container.innerHTML = code;
+      container.style.display = 'block';
+      container.querySelectorAll('script').forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(attr => {
+          newScript.setAttribute(attr.name, attr.value);
+        });
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+    }
+
     function renderAds(cfg) {
       if (!cfg) return;
       const topBanner = $('adTopBanner');
       if (topBanner && cfg.top_banner && cfg.top_banner.enabled && cfg.top_banner.code) {
-        topBanner.innerHTML = cfg.top_banner.code;
-        topBanner.style.display = 'block';
+        renderAdCode(topBanner, cfg.top_banner.code);
       }
       const bottomBanner = $('adBottomBanner');
       if (bottomBanner && cfg.bottom_banner && cfg.bottom_banner.enabled && cfg.bottom_banner.code) {
-        bottomBanner.innerHTML = cfg.bottom_banner.code;
-        bottomBanner.style.display = 'block';
+        renderAdCode(bottomBanner, cfg.bottom_banner.code);
       }
       const leftBanner = $('adLeftBanner');
       const leftAd = cfg.side_banner_left || null;
       if (leftBanner && leftAd && leftAd.enabled && leftAd.code) {
-        leftBanner.innerHTML = leftAd.code;
-        leftBanner.style.display = 'block';
+        renderAdCode(leftBanner, leftAd.code);
       }
       const rightBanner = $('adRightBanner');
-      const rightAd = cfg.side_banner_right || cfg.right_banner || null;
+      const rightAd = cfg.side_banner_right && cfg.side_banner_right.enabled ? cfg.side_banner_right : (cfg.right_banner ? cfg.right_banner : null);
       if (rightBanner && rightAd && rightAd.enabled && rightAd.code) {
-        rightBanner.innerHTML = rightAd.code;
-        rightBanner.style.display = 'block';
+        renderAdCode(rightBanner, rightAd.code);
       }
     }
 
