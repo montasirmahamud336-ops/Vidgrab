@@ -431,6 +431,7 @@ def get_video_info(request: VideoRequest):
     try:
         is_playlist = is_playlist_url(request.url)
 
+        is_pure_playlist = bool(re.search(r'/playlist\?|/playlists/', request.url))
         if is_playlist:
             playlist_opts = {
                 "quiet": True,
@@ -445,7 +446,9 @@ def get_video_info(request: VideoRequest):
                 playlist_opts["cookiefile"] = cookies_path
             try:
                 info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
-            except Exception:
+            except Exception as pl_exc:
+                if is_pure_playlist:
+                    raise HTTPException(status_code=400, detail=f"Failed to load playlist: {pl_exc}")
                 is_playlist = False
 
         if is_playlist:
