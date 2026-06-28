@@ -416,6 +416,7 @@ def get_video_info(request: VideoRequest):
                 "extract_flat": "in_playlist",
                 "skip_download": True,
                 "socket_timeout": 30,
+                "playlistend": 20,
             }
             cookies_path = os.path.join(BASE_DIR, "cookies.txt")
             if os.path.exists(cookies_path):
@@ -426,6 +427,7 @@ def get_video_info(request: VideoRequest):
                 is_playlist = False
 
         if is_playlist:
+            raw_count = info.get("playlist_count") or len(info.get("entries", []))
             entries = []
             for entry in info.get("entries", []):
                 if entry and entry.get("id") and entry.get("title"):
@@ -440,7 +442,7 @@ def get_video_info(request: VideoRequest):
                 "is_playlist": True,
                 "title": info.get("title", "Playlist"),
                 "uploader": info.get("uploader"),
-                "playlist_count": len(entries),
+                "playlist_count": raw_count,
                 "entries": entries,
             }
 
@@ -615,12 +617,14 @@ def download_playlist(
     playlist_name = "playlist"
 
     try:
+        max_videos = 20
         playlist_opts = {
             "quiet": True,
             "noplaylist": False,
             "extract_flat": "in_playlist",
             "skip_download": True,
             "socket_timeout": 30,
+            "playlistend": max_videos,
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
@@ -635,10 +639,6 @@ def download_playlist(
 
         if not entries:
             raise HTTPException(status_code=400, detail="No videos found in playlist")
-
-        max_videos = 20
-        if len(entries) > max_videos:
-            entries = entries[:max_videos]
 
         tmp_dir = tempfile.mkdtemp(prefix="vidgrab_playlist_")
         video_files = []
