@@ -339,7 +339,7 @@ def build_download_options(quality: str, output_template: str):
         "no_progress": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "android"],
+                "player_client": ["web"],
                 "player_skip": ["configs", "webpage", "js"],
             }
         },
@@ -394,7 +394,7 @@ def get_video_title(url: str) -> str:
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "android"],
+                    "player_client": ["web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
@@ -453,7 +453,7 @@ def get_video_info(request: VideoRequest):
                 "playlistend": 20,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["android", "web"],
+                        "player_client": ["web"],
                         "player_skip": ["configs", "webpage", "js"],
                     }
                 },
@@ -500,7 +500,7 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "android"],
+                    "player_client": ["web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
