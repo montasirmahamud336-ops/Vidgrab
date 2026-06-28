@@ -1,4 +1,4 @@
-const CACHE_NAME = "vidgrab-v1";
+const CACHE_NAME = "vidgrab-v2";
 
 const STATIC_ASSETS = [
   "/",
