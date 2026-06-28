@@ -291,7 +291,7 @@
         renderAdCode(leftBanner, leftAd.code);
       }
       const rightBanner = $('adRightBanner');
-      const rightAd = cfg.side_banner_right && cfg.side_banner_right.enabled ? cfg.side_banner_right : (cfg.right_banner ? cfg.right_banner : null);
+      const rightAd = cfg.side_banner_right || null;
       if (rightBanner && rightAd && rightAd.enabled && rightAd.code) {
         renderAdCode(rightBanner, rightAd.code);
       }

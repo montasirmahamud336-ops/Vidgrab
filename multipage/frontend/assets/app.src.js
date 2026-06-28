@@ -276,14 +276,12 @@
       const leftBanner = $('adLeftBanner');
       const leftAd = cfg.side_banner_left || null;
       if (leftBanner && leftAd && leftAd.enabled && leftAd.code) {
-        leftBanner.innerHTML = leftAd.code;
-        leftBanner.style.display = 'block';
+        renderAdCode(leftBanner, leftAd.code);
       }
       const rightBanner = $('adRightBanner');
-      const rightAd = cfg.side_banner_right || cfg.right_banner || null;
+      const rightAd = cfg.side_banner_right || null;
       if (rightBanner && rightAd && rightAd.enabled && rightAd.code) {
-        rightBanner.innerHTML = rightAd.code;
-        rightBanner.style.display = 'block';
+        renderAdCode(rightBanner, rightAd.code);
       }
     }
 
