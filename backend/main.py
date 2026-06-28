@@ -433,8 +433,12 @@ def get_video_info(request: VideoRequest):
             cookies_path = os.path.join(BASE_DIR, "cookies.txt")
             if os.path.exists(cookies_path):
                 playlist_opts["cookiefile"] = cookies_path
-            info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
+            try:
+                info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
+            except Exception:
+                is_playlist = False
 
+        if is_playlist:
             entries = []
             for entry in info.get("entries", []):
                 if entry and entry.get("id") and entry.get("title"):
