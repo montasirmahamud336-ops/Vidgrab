@@ -629,6 +629,10 @@
       };
     }
 
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+      localStorage.removeItem(PWA_KEY);
+    }
+
     if (isIOS) {
       setTimeout(() => {
         showInstallBanner(
@@ -651,7 +655,14 @@
           const btn = document.getElementById('pwaInstallBtn');
           if (btn) btn.onclick = () => {
             deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(() => { deferredPrompt = null; const b = document.getElementById('pwaBanner'); if (b) b.remove(); });
+            deferredPrompt.userChoice.then((result) => {
+              deferredPrompt = null;
+              const b = document.getElementById('pwaBanner');
+              if (b) b.remove();
+              if (result.outcome === 'dismissed') {
+                localStorage.setItem(PWA_KEY, '1');
+              }
+            });
           };
         }, 2000);
       });
