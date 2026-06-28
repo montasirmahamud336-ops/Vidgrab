@@ -402,7 +402,15 @@ def get_public_ads_config():
 
 
 def is_playlist_url(url: str) -> bool:
-    return bool(re.search(r'(list=|/playlist\?|/playlists/)', url))
+    if re.search(r'/playlist\?|/playlists/', url):
+        return True
+    m = re.search(r'list=([a-zA-Z0-9_-]+)', url)
+    if m:
+        lid = m.group(1)
+        if re.match(r'^(RD|LL|WL|LM|SE|OLAK5uy_)', lid):
+            return False
+        return True
+    return False
 
 @app.post("/info")
 def get_video_info(request: VideoRequest):
