@@ -608,6 +608,7 @@
       instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.',          bg: '#0f0808', acc: '#e1306c', orb1: 'rgba(225,48,108,.25)', orb2: 'rgba(188,42,141,.18)', plat: 'platInstagram' },
       tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.',           bg: '#050505', acc: '#00f2ea', orb1: 'rgba(0,242,234,.2)', orb2: 'rgba(255,0,80,.2)', plat: 'platTiktok' },
       others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.',              bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
+      playlist:{ title: 'Playlist Downloader',      desc: 'Download entire YouTube playlists as a ZIP. Paste any playlist link and start.', bg: '#0f0a14', acc: '#a855f7', orb1: 'rgba(168,85,247,.25)', orb2: 'rgba(139,92,246,.18)', plat: null },
     };
 
     function navigateTo(page) {
