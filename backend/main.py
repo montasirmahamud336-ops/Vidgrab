@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
@@ -18,6 +18,8 @@ import shutil
 import sys
 import tempfile
 import yt_dlp
+import subprocess
+import asyncio
 
 
 DOWNLOAD_DIR = os.environ.get("VIDGRAB_DOWNLOAD_DIR") or os.path.join(os.path.expanduser("~"), "Downloads")
@@ -279,11 +281,12 @@ def build_download_options(quality: str, output_template: str):
         "merge_output_format": "mp4",
         "postprocessors": settings["postprocessors"],
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
-        "quiet": False,
+        "quiet": True,
+        "no_warnings": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
-                "player_skip": ["configs", "webpage"],
+                "player_client": ["web", "android"],
+                "player_skip": ["configs", "webpage", "js"],
             }
         },
         "socket_timeout": 30,
@@ -319,6 +322,12 @@ def get_video_title(url: str) -> str:
             "noplaylist": True,
             "socket_timeout": 30,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["web", "android"],
+                    "player_skip": ["configs", "webpage", "js"],
+                }
+            },
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
@@ -360,8 +369,8 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
-                    "player_skip": ["configs", "webpage"],
+                    "player_client": ["web", "android"],
+                    "player_skip": ["configs", "webpage", "js"],
                 }
             },
             "socket_timeout": 30,

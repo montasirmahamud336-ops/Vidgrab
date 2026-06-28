@@ -266,11 +266,12 @@ def build_download_options(quality: str, output_template: str):
         "merge_output_format": "mp4",
         "postprocessors": settings["postprocessors"],
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
-        "quiet": False,
+        "quiet": True,
+        "no_warnings": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
-                "player_skip": ["configs", "webpage"],
+                "player_client": ["web", "android"],
+                "player_skip": ["configs", "webpage", "js"],
             }
         },
         "socket_timeout": 30,
@@ -306,6 +307,12 @@ def get_video_title(url: str) -> str:
             "noplaylist": True,
             "socket_timeout": 30,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["web", "android"],
+                    "player_skip": ["configs", "webpage", "js"],
+                }
+            },
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
@@ -347,8 +354,8 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "android", "ios", "mweb", "tv_embedded"],
-                    "player_skip": ["configs", "webpage"],
+                    "player_client": ["web", "android"],
+                    "player_skip": ["configs", "webpage", "js"],
                 }
             },
             "socket_timeout": 30,
