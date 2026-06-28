@@ -434,15 +434,8 @@ def is_playlist_url(url: str) -> bool:
     # pure playlist page URL
     if re.search(r'/playlist\?|/playlists/', url):
         return True
-    # watch URL with list= parameter
-    m = re.search(r'list=([a-zA-Z0-9_-]+)', url)
-    if m:
-        lid = m.group(1)
-        # exclude auto-generated playlists: Radio (RD), Liked (LL), Watch Later (WL), Liked Music (LM), Search (SE), Albums (OLAK5uy_)
-        if re.match(r'^(RD|LL|WL|LM|SE|OLAK5uy_)', lid):
-            return False
-        return True
-    return False
+    # any URL with list= parameter
+    return bool(re.search(r'list=', url))
 
 @app.post("/info")
 def get_video_info(request: VideoRequest):
