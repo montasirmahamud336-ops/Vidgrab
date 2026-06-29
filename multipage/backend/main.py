@@ -364,7 +364,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
             return ydl.extract_info(url, download=download)
     except Exception as e:
         err_str = str(e).lower()
-        needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden'])
+        needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden', 'reload'])
         if needs_cookies:
             for browser in ['firefox', 'chrome', 'edge', 'brave', 'opera']:
                 try:
@@ -388,7 +388,7 @@ def get_video_title(url: str) -> str:
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "web"],
+                    "player_client": ["web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
@@ -442,20 +442,27 @@ def get_video_info(request: VideoRequest):
 
         is_pure_playlist = bool(re.search(r'/playlist\?|/playlists/', request.url))
         if is_playlist:
+            lid_match = re.search(r'list=([a-zA-Z0-9_-]+)', request.url)
+            lid = lid_match.group(1) if lid_match else ''
+            is_radio_mix = lid.startswith('RD')
+
             playlist_opts = {
                 "quiet": True,
                 "noplaylist": False,
-                "extract_flat": "in_playlist",
                 "skip_download": True,
                 "socket_timeout": 30,
                 "playlistend": 20,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["ios", "web"],
+                        "player_client": ["web"],
                         "player_skip": ["configs", "webpage", "js"],
                     }
                 },
             }
+            if is_radio_mix:
+                playlist_opts["extract_flat"] = True
+            else:
+                playlist_opts["extract_flat"] = "in_playlist"
             cookies_path = os.path.join(BASE_DIR, "cookies.txt")
             if os.path.exists(cookies_path):
                 playlist_opts["cookiefile"] = cookies_path
@@ -464,7 +471,8 @@ def get_video_info(request: VideoRequest):
             except Exception:
                 try:
                     playlist_opts2 = playlist_opts.copy()
-                    playlist_opts2.pop("extract_flat", None)
+                    if "extract_flat" in playlist_opts2:
+                        playlist_opts2.pop("extract_flat", None)
                     info = extract_with_cookie_fallback(request.url, playlist_opts2, download=False)
                 except Exception as pl_exc:
                     if is_pure_playlist:
@@ -497,7 +505,7 @@ def get_video_info(request: VideoRequest):
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "web"],
+                    "player_client": ["web"],
                     "player_skip": ["configs", "webpage", "js"],
                 }
             },
@@ -506,7 +514,13 @@ def get_video_info(request: VideoRequest):
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
             ydl_opts["cookiefile"] = cookies_path
-        info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
+        try:
+            info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
+        except Exception:
+            flat_opts = ydl_opts.copy()
+            flat_opts["extract_flat"] = True
+            flat_opts.pop("format", None)
+            info = extract_with_cookie_fallback(request.url, flat_opts, download=False)
         save_info_to_cache(request.url, info)
         formats = info.get("formats", [])
 
@@ -665,14 +679,21 @@ def download_playlist(
 
     try:
         max_videos = 20
+        lid_match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
+        lid = lid_match.group(1) if lid_match else ''
+        is_radio_mix = lid.startswith('RD')
+
         playlist_opts = {
             "quiet": True,
             "noplaylist": False,
-            "extract_flat": "in_playlist",
             "skip_download": True,
             "socket_timeout": 30,
             "playlistend": max_videos,
         }
+        if is_radio_mix:
+            playlist_opts["extract_flat"] = True
+        else:
+            playlist_opts["extract_flat"] = "in_playlist"
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
             playlist_opts["cookiefile"] = cookies_path

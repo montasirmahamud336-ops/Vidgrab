@@ -472,7 +472,7 @@
             list.appendChild(item);
           });
 
-          dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Playlist (ZIP)';
+          dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All Videos';
           quality = 'best';
           toast(`Playlist found: ${data.playlist_count} videos`, 's');
         } else {
@@ -584,20 +584,39 @@
         setProgress(3, 60, 'Processing...');
 
         if (videoData?.is_playlist) {
-          const plUrl = `${getApiBaseUrl()}/download-playlist?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(q)}`;
-          if (isMobileDevice()) {
-            window.location.href = plUrl;
-          } else {
-            const a = document.createElement('a');
-            a.href = plUrl;
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+          const entries = videoData.entries || [];
+          for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const vidUrl = `https://www.youtube.com/watch?v=${entry.id}`;
+            const params = new URLSearchParams({ url: vidUrl, quality: q });
+            if (entry.title) params.set('title', entry.title);
+            const dlUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
+
+            setProgress(3, Math.round((i / entries.length) * 70) + 15, `Downloading ${i+1}/${entries.length}...`);
+
+            if (isMobileDevice()) {
+              window.location.href = dlUrl;
+              await new Promise(r => setTimeout(r, 2000));
+            } else {
+              try {
+                const resp = await fetch(dlUrl);
+                if (!resp.ok) {
+                  const errData = await resp.json().catch(()=>({}));
+                  throw new Error(errData.detail || `Failed video ${i+1}`);
+                }
+                const blob = await resp.blob();
+                const disp = resp.headers.get('Content-Disposition') || '';
+                const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
+                const filename = fnMatch ? decodeURIComponent(fnMatch[1]) : `video_${i+1}.mp4`;
+                triggerBlob(blob, filename);
+              } catch(err) {
+                toast(`Video ${i+1} failed: ${err.message}`, 'e');
+              }
+            }
           }
-          setProgress(4, 100, 'Download started');
+          setProgress(4, 100, 'Download complete');
           setTimeout(() => prog.classList.remove('vis'), 1500);
-          toast('Playlist download started.', 's');
+          toast(`Downloaded ${entries.length} videos`, 's');
           dlB.disabled = false;
           return;
         }
@@ -668,7 +687,7 @@
       instagram:{title: 'Instagram Video Downloader', desc: 'Download Instagram videos, reels & stories. Paste the link and download instantly.',          bg: '#0f0808', acc: '#e1306c', orb1: 'rgba(225,48,108,.25)', orb2: 'rgba(188,42,141,.18)', plat: 'platInstagram' },
       tiktok:  { title: 'TikTok Video Downloader',    desc: 'Download TikTok videos without watermark. Paste a TikTok link and download free.',           bg: '#050505', acc: '#00f2ea', orb1: 'rgba(0,242,234,.2)', orb2: 'rgba(255,0,80,.2)', plat: 'platTiktok' },
       others:  { title: 'Universal Video Downloader', desc: 'Download videos from any website. Paste the video link and start downloading.',              bg: '#06080f', acc: '#38bdf8', orb1: 'rgba(56,189,248,.3)', orb2: 'rgba(139,92,246,.22)', plat: null },
-      playlist:{ title: 'Playlist Downloader',      desc: 'Download entire YouTube playlists as a ZIP. Paste any playlist link and start.', bg: '#0f0a14', acc: '#a855f7', orb1: 'rgba(168,85,247,.25)', orb2: 'rgba(139,92,246,.18)', plat: null },
+      playlist:{ title: 'Playlist Downloader',      desc: 'Download entire YouTube playlists. Paste any playlist link and start.', bg: '#0f0a14', acc: '#a855f7', orb1: 'rgba(168,85,247,.25)', orb2: 'rgba(139,92,246,.18)', plat: null },
     };
 
     function navigateTo(page) {
