@@ -467,7 +467,7 @@
           dlBtn.disabled = data.is_mix ? true : false;
           toast(data.is_mix ? data.warning || 'Mix playlists are not supported for download' : `Playlist found: ${data.playlist_count} videos`, data.is_mix ? 'e' : 's');
         } else {
-          singleOpts.style.display = 'block';
+          singleOpts.style.display = '';
           plSection.style.display = 'none';
           vTitle.textContent = data.title || 'Video';
           dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
