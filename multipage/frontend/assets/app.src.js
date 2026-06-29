@@ -430,31 +430,42 @@
         if (data.is_playlist) {
           singleOpts.style.display = 'none';
           plSection.style.display = 'block';
-          vTitle.textContent = data.title || 'Playlist';
-          vPlat.textContent = platform.name + ' Playlist';
+          vTitle.textContent = data.is_mix ? 'Mix Playlist (Not Supported)' : (data.title || 'Playlist');
+          vPlat.textContent = 'YouTube Mix' + (data.is_mix ? ' ⚠️ Cannot download' : ' Playlist');
           setThumbState('placeholder');
-          document.getElementById('thPh').querySelector('span').textContent = `${data.playlist_count} videos`;
-          document.getElementById('plTitle').textContent = data.title || 'Playlist';
-          document.getElementById('plMeta').textContent = `${data.playlist_count} videos`;
+          document.getElementById('thPh').querySelector('span').textContent = data.is_mix ? 'Not downloadable' : `${data.playlist_count} videos`;
+          document.getElementById('plTitle').textContent = data.is_mix ? 'YouTube Mix Playlist' : (data.title || 'Playlist');
+          document.getElementById('plMeta').textContent = data.is_mix ? (data.warning || 'Mix playlists require YouTube cookies') : `${data.playlist_count} videos`;
 
           const list = document.getElementById('plList');
           list.innerHTML = '';
-          data.entries.forEach((entry, i) => {
-            const item = document.createElement('div');
-            item.className = 'pl-item';
-            const dur = entry.duration ? `${Math.floor(entry.duration / 60)}:${String(entry.duration % 60).padStart(2, '0')}` : '';
-            item.innerHTML = `
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span class="pl-idx">${i + 1}</span>
-              <span class="pl-ttl">${entry.title}</span>
-              <span class="pl-dur">${dur}</span>
-            `;
-            list.appendChild(item);
-          });
+          if (data.is_mix) {
+            const msg = document.createElement('div');
+            msg.className = 'pl-item';
+            msg.style.cssText = 'color:#fbbf24;padding:20px;text-align:center;grid-column:1/-1';
+            msg.textContent = data.warning || 'YouTube Mix playlists cannot be downloaded accurately. Add YouTube cookies in settings or download individual videos.';
+            list.appendChild(msg);
+          } else {
+            data.entries.forEach((entry, i) => {
+              const item = document.createElement('div');
+              item.className = 'pl-item';
+              const dur = entry.duration ? `${Math.floor(entry.duration / 60)}:${String(entry.duration % 60).padStart(2, '0')}` : '';
+              item.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span class="pl-idx">${i + 1}</span>
+                <span class="pl-ttl">${entry.title}</span>
+                <span class="pl-dur">${dur}</span>
+              `;
+              list.appendChild(item);
+            });
+          }
 
-          dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All Videos';
+          dlBtn.innerHTML = data.is_mix
+            ? '<span style="color:#fbbf24">⚠️ Cannot Download Mix Playlist</span>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All Videos';
           quality = 'best';
-          toast(`Playlist found: ${data.playlist_count} videos`, 's');
+          dlBtn.disabled = data.is_mix ? true : false;
+          toast(data.is_mix ? data.warning || 'Mix playlists are not supported for download' : `Playlist found: ${data.playlist_count} videos`, data.is_mix ? 'e' : 's');
         } else {
           singleOpts.style.display = 'block';
           plSection.style.display = 'none';
@@ -564,6 +575,7 @@
         setProgress(3, 60, 'Processing...');
 
         if (videoData?.is_playlist) {
+          if (videoData.is_mix) { toast('Mix playlists cannot be downloaded.', 'e'); return; }
           const entries = videoData.entries || [];
           for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];

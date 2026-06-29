@@ -446,12 +446,24 @@ def get_video_info(request: VideoRequest):
             lid = lid_match.group(1) if lid_match else ''
             is_radio_mix = lid.startswith('RD')
 
+            if is_radio_mix:
+                return {
+                    "is_playlist": True,
+                    "is_mix": True,
+                    "title": "YouTube Mix Playlist",
+                    "uploader": None,
+                    "playlist_count": 0,
+                    "entries": [],
+                    "warning": "YouTube Mix playlists cannot be downloaded accurately. Please download individual videos or add YouTube cookies in settings.",
+                }
+
             playlist_opts = {
                 "quiet": True,
                 "noplaylist": False,
                 "skip_download": True,
                 "socket_timeout": 30,
                 "playlistend": 20,
+                "extract_flat": "in_playlist",
                 "extractor_args": {
                     "youtube": {
                         "player_client": ["web"],
@@ -459,10 +471,6 @@ def get_video_info(request: VideoRequest):
                     }
                 },
             }
-            if is_radio_mix:
-                playlist_opts["extract_flat"] = True
-            else:
-                playlist_opts["extract_flat"] = "in_playlist"
             cookies_path = os.path.join(BASE_DIR, "cookies.txt")
             if os.path.exists(cookies_path):
                 playlist_opts["cookiefile"] = cookies_path
@@ -683,17 +691,17 @@ def download_playlist(
         lid = lid_match.group(1) if lid_match else ''
         is_radio_mix = lid.startswith('RD')
 
+        if is_radio_mix:
+            raise HTTPException(status_code=400, detail="YouTube Mix playlists cannot be downloaded. Please download individual videos instead.")
+
         playlist_opts = {
             "quiet": True,
             "noplaylist": False,
             "skip_download": True,
             "socket_timeout": 30,
             "playlistend": max_videos,
+            "extract_flat": "in_playlist",
         }
-        if is_radio_mix:
-            playlist_opts["extract_flat"] = True
-        else:
-            playlist_opts["extract_flat"] = "in_playlist"
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
             playlist_opts["cookiefile"] = cookies_path
