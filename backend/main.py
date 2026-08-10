@@ -200,8 +200,8 @@ def log_download(
     url: str,
     title: str,
     quality: str,
-    file_size: int | None = None,
-    client_ip: str | None = None,
+    file_size: Optional[int] = None,
+    client_ip: Optional[str] = None,
 ):
     """Log a download event to the JSON file."""
     log = load_download_log()
@@ -241,7 +241,7 @@ def save_info_to_cache(url: str, info: dict):
     except Exception:
         pass
 
-def get_cached_info_path(url: str) -> str | None:
+def get_cached_info_path(url: str) -> Optional[str]:
     key = cache_info_key(url)
     path = os.path.join(INFO_CACHE_DIR, f"{key}.json")
     if os.path.exists(path):
@@ -272,16 +272,16 @@ class VideoRequest(BaseModel):
 
 class CookieData(BaseModel):
     cookies: str
-    user_agent: str | None = None
+    user_agent: Optional[str] = None
 
 class AdsConfigUpdate(BaseModel):
-    top_banner: dict | None = None
-    right_banner: dict | None = None
-    bottom_banner: dict | None = None
-    redirect_ads: dict | None = None
-    admin_password: str | None = None
-    side_banner_left: dict | None = None
-    side_banner_right: dict | None = None
+    top_banner: Optional[dict] = None
+    right_banner: Optional[dict] = None
+    bottom_banner: Optional[dict] = None
+    redirect_ads: Optional[dict] = None
+    admin_password: Optional[str] = None
+    side_banner_left: Optional[dict] = None
+    side_banner_right: Optional[dict] = None
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -330,9 +330,9 @@ def short_filename(name: str) -> str:
 # ── Auto browser cookie detection ────────────────────────────────────────────
 BROWSER_LIST = ["chrome", "edge", "firefox", "brave", "opera", "chromium", "vivaldi", "safari"]
 
-_detected_browser: str | None = None  # cache the first working browser
+_detected_browser: Optional[str] = None  # cache the first working browser
 
-def detect_working_browser() -> str | None:
+def detect_working_browser() -> Optional[str]:
     """Try each browser and return the first one that can provide cookies."""
     global _detected_browser
     if _detected_browser is not None:
@@ -379,7 +379,7 @@ def build_download_options(quality: str, output_template: str):
     return opts
 
 
-def find_latest_file(directory: str) -> str | None:
+def find_latest_file(directory: str) -> Optional[str]:
     files = [path for path in glob.glob(os.path.join(directory, "*")) if os.path.isfile(path)]
     if not files:
         return None
@@ -901,7 +901,7 @@ def save_cookies_log(log: list):
     with open(COOKIES_LOG_PATH, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2, ensure_ascii=False)
 
-def extract_cookie_name(cookies_str: str) -> str | None:
+def extract_cookie_name(cookies_str: str) -> Optional[str]:
     """Try to find a user identifier from common cookie patterns."""
     pairs = {}
     for part in cookies_str.split(";"):
@@ -1044,7 +1044,7 @@ def admin_get_stats(credentials: HTTPBasicCredentials = Depends(verify_admin)):
     total_downloads = len(log)
 
     # ── Platform breakdown (sorted by count desc) ──
-    platform_counts: dict[str, int] = {}
+    platform_counts: Dict[str, int] = {}
     for entry in log:
         p = entry.get("platform", "Other")
         platform_counts[p] = platform_counts.get(p, 0) + 1
@@ -1136,7 +1136,7 @@ def admin_get_downloads(
     credentials: HTTPBasicCredentials = Depends(verify_admin),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    platform: str | None = Query(None),
+    platform: Optional[str] = Query(None),
 ):
     """Return paginated download history for the admin dashboard."""
     log = load_download_log()
