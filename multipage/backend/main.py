@@ -324,6 +324,8 @@ def build_download_options(quality: str, output_template: str):
         "quiet": True,
         "no_warnings": True,
         "no_progress": True,
+        "extractor_retries": 10,
+        "sleep_requests": 1.0,
         "extractor_args": {
             "youtube": {
                 "player_client": ["ios", "web"],
@@ -359,23 +361,36 @@ def cleanup_partial_downloads(directory: str):
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=download)
-    except Exception as e:
-        err_str = str(e).lower()
-        needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden', 'reload'])
-        if needs_cookies:
-            for browser in ['firefox', 'chrome', 'edge', 'brave', 'opera']:
-                try:
-                    retry_opts = ydl_opts.copy()
-                    retry_opts['cookiesfrombrowser'] = (browser,)
-                    retry_opts.pop('cookiefile', None)
-                    with yt_dlp.YoutubeDL(retry_opts) as ydl:
-                        return ydl.extract_info(url, download=download)
-                except Exception:
-                    continue
-        raise e
+    strategies = [
+        lambda o: o,
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["web"], "player_skip": []}}},
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["android"], "player_skip": ["configs", "webpage", "js"]}}},
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["tv"], "player_skip": []}}},
+        lambda o: {**o, "sleep_requests": 2.0, "extractor_retries": 5},
+    ]
+
+    last_exc = None
+    for strategy in strategies:
+        try:
+            retry_opts = strategy(ydl_opts)
+            with yt_dlp.YoutubeDL(retry_opts) as ydl:
+                return ydl.extract_info(url, download=download)
+        except Exception as exc:
+            last_exc = exc
+            err_str = str(exc).lower()
+
+    if any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden', 'reload']):
+        for browser in ['firefox', 'chrome', 'edge', 'brave', 'opera']:
+            try:
+                retry_opts = ydl_opts.copy()
+                retry_opts['cookiesfrombrowser'] = (browser,)
+                retry_opts.pop('cookiefile', None)
+                with yt_dlp.YoutubeDL(retry_opts) as ydl:
+                    return ydl.extract_info(url, download=download)
+            except Exception:
+                continue
+
+    raise last_exc
 
 
 def get_video_title(url: str) -> str:
@@ -386,6 +401,8 @@ def get_video_title(url: str) -> str:
             "noplaylist": True,
             "socket_timeout": 30,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_retries": 10,
+            "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
                     "player_client": ["web"],
@@ -464,6 +481,8 @@ def get_video_info(request: VideoRequest):
                 "socket_timeout": 30,
                 "playlistend": 20,
                 "extract_flat": "in_playlist",
+                "extractor_retries": 10,
+                "sleep_requests": 1.0,
                 "extractor_args": {
                     "youtube": {
                         "player_client": ["web"],
@@ -511,6 +530,8 @@ def get_video_info(request: VideoRequest):
             "quiet": True,
             "noplaylist": True,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_retries": 10,
+            "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
                     "player_client": ["web"],
@@ -617,6 +638,8 @@ def download_video_file(
         sys.executable, "-m", "yt_dlp",
         "--no-playlist",
         "--no-progress",
+        "--extractor-retries", "10",
+        "--sleep-requests", "1.0",
         "-f", settings["format"],
         "-o", "-",
         "--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe(),

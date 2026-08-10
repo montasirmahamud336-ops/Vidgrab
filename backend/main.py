@@ -325,6 +325,29 @@ def short_filename(name: str) -> str:
     return f"{sanitized}_{h}" if sanitized else f"video_{h}"
 
 
+# ── Auto browser cookie detection ────────────────────────────────────────────
+BROWSER_LIST = ["chrome", "edge", "firefox", "brave", "opera", "chromium", "vivaldi", "safari"]
+
+_detected_browser: str | None = None  # cache the first working browser
+
+def detect_working_browser() -> str | None:
+    """Try each browser and return the first one that can provide cookies."""
+    global _detected_browser
+    if _detected_browser is not None:
+        return _detected_browser
+    test_opts = {"quiet": True, "no_warnings": True, "simulate": True, "skip_download": True}
+    for browser in BROWSER_LIST:
+        try:
+            opts = {**test_opts, "cookiesfrombrowser": (browser,)}
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.cookiejar  # just accessing it triggers cookie loading
+            _detected_browser = browser
+            return browser
+        except Exception:
+            continue
+    return None
+
+
 def build_download_options(quality: str, output_template: str):
     settings = build_download_settings(quality)
     opts = {
@@ -337,15 +360,17 @@ def build_download_options(quality: str, output_template: str):
         "quiet": True,
         "no_warnings": True,
         "no_progress": True,
+        "extractor_retries": 10,
+        "sleep_requests": 1.0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "web"],
-                "player_skip": ["configs", "webpage", "js"],
+                "player_client": ["ios", "android", "mweb", "web"],
             }
         },
         "socket_timeout": 30,
         "outtmpl_na_placeholder": "video",
     }
+    # Priority 1: cookies.txt file (manual export)
     cookies_path = os.path.join(BASE_DIR, "cookies.txt")
     if os.path.exists(cookies_path):
         opts["cookiefile"] = cookies_path
@@ -373,23 +398,64 @@ def cleanup_partial_downloads(directory: str):
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=download)
-    except Exception as e:
-        err_str = str(e).lower()
-        needs_cookies = any(k in err_str for k in ['sign in', 'bot', 'confirm', '403', 'forbidden', 'reload'])
-        if needs_cookies:
-            for browser in ['firefox', 'chrome', 'edge', 'brave', 'opera']:
-                try:
-                    retry_opts = ydl_opts.copy()
-                    retry_opts['cookiesfrombrowser'] = (browser,)
-                    retry_opts.pop('cookiefile', None)
-                    with yt_dlp.YoutubeDL(retry_opts) as ydl:
-                        return ydl.extract_info(url, download=download)
-                except Exception:
-                    continue
-        raise e
+    """Try multiple strategies to extract video info, with automatic cookie and player client fallbacks."""
+
+    def _with_browser(o: dict, browser: str) -> dict:
+        """Return opts with browser cookies, removing any existing cookiefile."""
+        updated = o.copy()
+        updated.pop("cookiefile", None)
+        updated["cookiesfrombrowser"] = (browser,)
+        return updated
+
+    def _without_cookies(o: dict) -> dict:
+        """Return opts without any cookie parameters."""
+        updated = o.copy()
+        updated.pop("cookiefile", None)
+        updated.pop("cookiesfrombrowser", None)
+        return updated
+
+    # Build strategy list — non-cookie mobile/TV clients first to avoid browser database locks
+    strategies = [
+        # 1. Direct opts as requested
+        lambda o: o,
+        # 2. Base options without cookies (bypasses browser database lock issue)
+        lambda o: _without_cookies(o),
+        # 3. ios client (very permissive, minimal bot checks)
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["ios"]}}},
+        # 4. android client
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["android"]}}},
+        # 5. tv_embedded client
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        # 6. mweb client
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
+        # 7. Force Chrome cookies (if Chrome is available and not locked)
+        lambda o: _with_browser(o, "chrome"),
+        # 8. Edge cookies
+        lambda o: _with_browser(o, "edge"),
+        # 9. Firefox cookies
+        lambda o: _with_browser(o, "firefox"),
+        # 10. Brave cookies
+        lambda o: _with_browser(o, "brave"),
+        # 11. web client fallback
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["web"]}}},
+        # 12. tv client
+        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["tv"]}}},
+        # 13. Slow retry
+        lambda o: {**_without_cookies(o), "sleep_requests": 2.0, "extractor_retries": 5},
+    ]
+
+    last_exc = None
+    for strategy in strategies:
+        try:
+            retry_opts = strategy(ydl_opts)
+            with yt_dlp.YoutubeDL(retry_opts) as ydl:
+                return ydl.extract_info(url, download=download)
+        except Exception as exc:
+            last_exc = exc
+            # Continue to next strategy regardless of error type
+            continue
+
+    raise last_exc
 
 
 def get_video_title(url: str) -> str:
@@ -400,20 +466,20 @@ def get_video_title(url: str) -> str:
             "noplaylist": True,
             "socket_timeout": 30,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_retries": 10,
+            "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web"],
-                    "player_skip": ["configs", "webpage", "js"],
+                    "player_client": ["ios", "android", "web"],
                 }
             },
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
             ydl_opts["cookiefile"] = cookies_path
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            title = info.get("title") or info.get("fulltitle") or "video"
-            return sanitize_filename(title)
+        info = extract_with_cookie_fallback(url, ydl_opts, download=False)
+        title = info.get("title") or info.get("fulltitle") or "video"
+        return sanitize_filename(title)
     except Exception:
         return "video"
 
@@ -439,18 +505,28 @@ def get_public_ads_config():
 
 
 def is_playlist_url(url: str) -> bool:
-    # pure playlist page URL
-    if re.search(r'/playlist\?|/playlists/', url):
-        return True
-    # any URL with list= parameter
+    # Check if URL contains a specific video ID (e.g. watch?v=... or youtu.be/...)
+    has_video_id = bool(re.search(r'[?&]v=[a-zA-Z0-9_-]+', url) or re.search(r'youtu\.be/[a-zA-Z0-9_-]+', url))
+
     m = re.search(r'list=([a-zA-Z0-9_-]+)', url)
     if m:
         lid = m.group(1)
-        # private playlists (WL=Watch Later, LL=Liked, LM=Liked Music) — always fail
+        # If it's a Mix (RD...) or radio mix attached to a single video link, download the single video!
+        if has_video_id and (lid.startswith(('RD', 'WL', 'LL', 'LM')) or 'start_radio' in url):
+            return False
+
+    # Pure playlist page URL
+    if re.search(r'/playlist\?|/playlists/', url):
+        return True
+
+    if m:
+        lid = m.group(1)
         if lid.startswith(('WL', 'LL', 'LM')):
             return False
         return True
+
     return False
+
 
 @app.post("/info")
 def get_video_info(request: VideoRequest):
@@ -467,11 +543,11 @@ def get_video_info(request: VideoRequest):
                 return {
                     "is_playlist": True,
                     "is_mix": True,
-                    "title": "YouTube Mix Playlist",
+                    "title": "YouTube Radio Mix Playlist",
                     "uploader": None,
                     "playlist_count": 0,
                     "entries": [],
-                    "warning": "YouTube Mix playlists cannot be downloaded accurately. Please download individual videos or add YouTube cookies in settings.",
+                    "warning": "YouTube Radio Mix playlists are generated dynamically by YouTube. To download a video from a Mix, please copy the specific video link.",
                 }
 
             playlist_opts = {
@@ -481,10 +557,11 @@ def get_video_info(request: VideoRequest):
                 "socket_timeout": 30,
                 "playlistend": 20,
                 "extract_flat": "in_playlist",
+                "extractor_retries": 10,
+                "sleep_requests": 1.0,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["web"],
-                        "player_skip": ["configs", "webpage", "js"],
+                        "player_client": ["ios", "android", "web"],
                     }
                 },
             }
@@ -523,15 +600,15 @@ def get_video_info(request: VideoRequest):
                 "playlist_count": raw_count,
                 "entries": entries,
             }
-
         ydl_opts = {
             "quiet": True,
             "noplaylist": True,
             "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "extractor_retries": 10,
+            "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web"],
-                    "player_skip": ["configs", "webpage", "js"],
+                    "player_client": ["ios", "android", "web"],
                 }
             },
             "socket_timeout": 30,
@@ -634,6 +711,9 @@ def download_video_file(
         sys.executable, "-m", "yt_dlp",
         "--no-playlist",
         "--no-progress",
+        "--extractor-retries", "10",
+        "--sleep-requests", "1.0",
+        "--extractor-args", "youtube:player_client=ios,android,mweb,web",
         "-f", settings["format"],
         "-o", "-",
         "--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe(),
