@@ -27,6 +27,7 @@ jobs:
       - name: Get Dependencies
         run: |
           cd mobile_app
+          flutter config --no-analytics
           flutter pub get
 
       - name: Build Android Release APK
