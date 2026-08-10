@@ -350,6 +350,14 @@ def detect_working_browser() -> Optional[str]:
     return None
 
 
+def get_ffmpeg_binary_path():
+    if shutil.which("ffmpeg"):
+        return shutil.which("ffmpeg")
+    try:
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
 def build_download_options(quality: str, output_template: str):
     settings = build_download_settings(quality)
     opts = {
@@ -358,7 +366,7 @@ def build_download_options(quality: str, output_template: str):
         "noplaylist": True,
         "merge_output_format": "mp4",
         "postprocessors": settings["postprocessors"],
-        "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+        "ffmpeg_location": get_ffmpeg_binary_path(),
         "quiet": True,
         "no_warnings": True,
         "no_progress": True,
@@ -718,7 +726,7 @@ def download_video_file(
         "--extractor-args", "youtube:player_client=ios,android,mweb,web",
         "-f", settings["format"],
         "-o", "-",
-        "--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe(),
+        "--ffmpeg-location", get_ffmpeg_binary_path(),
     ]
 
     if quality not in ("mp3_best", "m4a_best"):
