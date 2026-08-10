@@ -1,0 +1,29 @@
+name: snaptube_downloader
+description: Production-Ready SnapTube Clone Mobile Application with Share Sheet Intent & VPS Backend.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  http: ^1.2.0
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.0
+  receive_sharing_intent: ^1.4.5
+  flutter_local_notifications: ^17.0.0
+  open_filex: ^4.4.0
+  shared_preferences: ^2.2.2
+  provider: ^6.1.1
+  url_launcher: ^6.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
