@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
@@ -6,6 +7,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict, List, Any
 import imageio_ffmpeg
 import glob
 import hashlib
@@ -175,7 +177,7 @@ def save_daily_free_log(log: dict):
         json.dump(log, f, indent=2)
 
 
-def get_file_size_bytes(path: str) -> int | None:
+def get_file_size_bytes(path: str) -> Optional[int]:
     """Get file size in bytes."""
     try:
         return os.path.getsize(path)
@@ -183,7 +185,7 @@ def get_file_size_bytes(path: str) -> int | None:
         return None
 
 
-def format_file_size(size_bytes: int | None) -> str:
+def format_file_size(size_bytes: Optional[int]) -> str:
     """Format bytes to human readable size."""
     if not size_bytes:
         return "N/A"
