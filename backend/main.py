@@ -304,11 +304,11 @@ def build_download_settings(quality: str):
         }
     if quality == "best":
         return {
-            "format": "best/bestvideo+bestaudio",
+            "format": "b/best/bestvideo+bestaudio",
             "postprocessors": [],
         }
     return {
-        "format": f"best[height<={quality}]/bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best",
+        "format": f"b/best[height<={quality}]/bestvideo[height<={quality}]+bestaudio/best",
         "postprocessors": [],
     }
 
@@ -370,14 +370,14 @@ def build_download_options(quality: str, output_template: str):
         "quiet": True,
         "no_warnings": True,
         "no_progress": True,
-        "extractor_retries": 10,
-        "sleep_requests": 1.0,
+        "extractor_retries": 3,
+        "sleep_requests": 0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "android", "mweb", "web"],
+                "player_client": ["ios", "android", "web"],
             }
         },
-        "socket_timeout": 30,
+        "socket_timeout": 10,
         "outtmpl_na_placeholder": "video",
     }
     # Priority 1: cookies.txt file (manual export)
@@ -408,50 +408,24 @@ def cleanup_partial_downloads(directory: str):
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    """Try multiple strategies to extract video info, with automatic cookie and player client fallbacks."""
-
-    def _with_browser(o: dict, browser: str) -> dict:
-        """Return opts with browser cookies, removing any existing cookiefile."""
-        updated = o.copy()
-        updated.pop("cookiefile", None)
-        updated["cookiesfrombrowser"] = (browser,)
-        return updated
+    """Try fast strategies to extract video info without slow browser db locks."""
 
     def _without_cookies(o: dict) -> dict:
-        """Return opts without any cookie parameters."""
         updated = o.copy()
         updated.pop("cookiefile", None)
         updated.pop("cookiesfrombrowser", None)
         return updated
 
-    # Build strategy list — non-cookie mobile/TV clients first to avoid browser database locks
+    # Fast strategies: max 4 lightweight options, 8s timeout each
     strategies = [
-        # 1. Direct opts as requested
-        lambda o: o,
-        # 2. Base options without cookies (bypasses browser database lock issue)
-        lambda o: _without_cookies(o),
-        # 3. ios client (very permissive, minimal bot checks)
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["ios"]}}},
-        # 4. android client
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        # 5. tv_embedded client
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        # 6. mweb client
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        # 7. Force Chrome cookies (if Chrome is available and not locked)
-        lambda o: _with_browser(o, "chrome"),
-        # 8. Edge cookies
-        lambda o: _with_browser(o, "edge"),
-        # 9. Firefox cookies
-        lambda o: _with_browser(o, "firefox"),
-        # 10. Brave cookies
-        lambda o: _with_browser(o, "brave"),
-        # 11. web client fallback
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["web"]}}},
-        # 12. tv client
-        lambda o: {**_without_cookies(o), "extractor_args": {"youtube": {"player_client": ["tv"]}}},
-        # 13. Slow retry
-        lambda o: {**_without_cookies(o), "sleep_requests": 2.0, "extractor_retries": 5},
+        # 1. As requested with 8s socket_timeout
+        lambda o: {**o, "socket_timeout": o.get("socket_timeout", 8), "no_check_certificate": True},
+        # 2. ios client
+        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["ios"]}}},
+        # 3. android client
+        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android"]}}},
+        # 4. web client fallback
+        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["web"]}}},
     ]
 
     last_exc = None
@@ -462,7 +436,6 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
                 return ydl.extract_info(url, download=download)
         except Exception as exc:
             last_exc = exc
-            # Continue to next strategy regardless of error type
             continue
 
     raise last_exc
