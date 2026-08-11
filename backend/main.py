@@ -617,14 +617,14 @@ def get_video_info(request: VideoRequest):
             "quiet": True,
             "noplaylist": True,
             "ffmpeg_location": get_ffmpeg_binary_path(),
-            "extractor_retries": 10,
-            "sleep_requests": 1.0,
+            "extractor_retries": 3,
+            "sleep_requests": 0,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "android", "mweb", "web"],
+                    "player_client": ["ios", "android", "web"],
                 }
             },
-            "socket_timeout": 30,
+            "socket_timeout": 10,
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
