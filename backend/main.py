@@ -610,15 +610,18 @@ def get_video_info(request: VideoRequest):
                 "playlist_count": raw_count,
                 "entries": entries,
             }
+        # Clean tracking query parameters (e.g., ?igsh=..., ?si=..., ?fbclid=...)
+        clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', request.url).rstrip('?&')
+
         ydl_opts = {
             "quiet": True,
             "noplaylist": True,
-            "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+            "ffmpeg_location": get_ffmpeg_binary_path(),
             "extractor_retries": 10,
             "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "android", "web"],
+                    "player_client": ["ios", "android", "mweb", "web"],
                 }
             },
             "socket_timeout": 30,
@@ -627,12 +630,16 @@ def get_video_info(request: VideoRequest):
         if os.path.exists(cookies_path):
             ydl_opts["cookiefile"] = cookies_path
         try:
-            info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
+            info = extract_with_cookie_fallback(clean_url, ydl_opts, download=False)
         except Exception:
             flat_opts = ydl_opts.copy()
             flat_opts["extract_flat"] = True
             flat_opts.pop("format", None)
-            info = extract_with_cookie_fallback(request.url, flat_opts, download=False)
+            try:
+                info = extract_with_cookie_fallback(clean_url, flat_opts, download=False)
+            except Exception:
+                info = extract_with_cookie_fallback(request.url, flat_opts, download=False)
+
         save_info_to_cache(request.url, info)
         formats = info.get("formats", [])
 
@@ -645,7 +652,13 @@ def get_video_info(request: VideoRequest):
 
         sorted_video = sorted(video_qualities, reverse=True)
         video_options = [{"label": f"{q}p", "value": str(q)} for q in sorted_video]
-        if video_options:
+        if not video_options:
+            video_options = [
+                {"label": "Best Quality", "value": "best"},
+                {"label": "720p", "value": "720"},
+                {"label": "360p", "value": "360"},
+            ]
+        elif video_options and video_options[0]["value"] != "best":
             video_options.insert(0, {"label": "Best Quality", "value": "best"})
 
         audio_options = [
@@ -655,7 +668,7 @@ def get_video_info(request: VideoRequest):
 
         return {
             "is_playlist": False,
-            "title": info.get("title"),
+            "title": info.get("title") or "Video",
             "thumbnail": info.get("thumbnail"),
             "duration": info.get("duration"),
             "uploader": info.get("uploader"),
