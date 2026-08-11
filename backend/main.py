@@ -730,12 +730,16 @@ def download_video_file(
 
     settings = build_download_settings(quality)
 
+    clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', url).rstrip('?&')
+
     cmd = [
         sys.executable, "-m", "yt_dlp",
         "--no-playlist",
         "--no-progress",
+        "--no-check-certificates",
+        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "--extractor-retries", "10",
-        "--sleep-requests", "1.0",
+        "--sleep-requests", "0.5",
         "--extractor-args", "youtube:player_client=ios,android,mweb,web",
         "-f", settings["format"],
         "-o", "-",
@@ -752,11 +756,11 @@ def download_video_file(
     if os.path.exists(cookies_path):
         cmd.extend(["--cookies", cookies_path])
 
-    cached_path = get_cached_info_path(url)
+    cached_path = get_cached_info_path(clean_url)
     if cached_path:
         cmd.extend(["--load-info-json", cached_path])
 
-    cmd.append(url)
+    cmd.append(clean_url)
 
     def generate():
         process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
