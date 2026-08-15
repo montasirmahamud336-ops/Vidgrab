@@ -453,29 +453,29 @@ def get_valid_cookies_path() -> Optional[str]:
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    """Try fast strategies to extract video info, fallback to no-cookies if cookie file fails."""
+    """Try fast strategies to extract video info: NO COOKIES FIRST, fallback to cookies if needed."""
     cookies_path = get_valid_cookies_path()
-    
-    # 1. Strategies WITH cookies (if available)
+
+    # 1. Options WITHOUT cookies (preferred for public videos to avoid bad cookies blocking)
+    no_cookie_opts = ydl_opts.copy()
+    no_cookie_opts.pop("cookiefile", None)
+
+    # 2. Options WITH cookies (if valid cookie file exists)
     with_cookie_opts = ydl_opts.copy()
     if cookies_path:
         with_cookie_opts["cookiefile"] = cookies_path
 
-    # 2. Strategies WITHOUT cookies (in case cookies are broken/expired/rejected)
-    no_cookie_opts = ydl_opts.copy()
-    no_cookie_opts.pop("cookiefile", None)
+    valid_clients = ["ios", "android", "mweb", "web_embedded"]
 
     strategies = [
-        # Strategy 1: With cookies + default
-        lambda: with_cookie_opts if cookies_path else None,
-        # Strategy 2: With cookies + player clients
-        lambda: {**with_cookie_opts, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator", "android_vr"]}}} if cookies_path else None,
-        # Strategy 3: WITHOUT cookies + android_creator, web_creator, android_vr, web_embedded, mweb
-        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator", "android_vr", "web_embedded", "mweb"]}}},
-        # Strategy 4: WITHOUT cookies + tv_embedded, ios
-        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": ["tv_embedded", "ios"]}}},
-        # Strategy 5: WITHOUT cookies + default
+        # Strategy 1: WITHOUT cookies + ios, android, mweb, web_embedded (bypasses bad cookies & bot check)
+        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": valid_clients}}},
+        # Strategy 2: WITHOUT cookies + default
         lambda: no_cookie_opts,
+        # Strategy 3: WITH cookies + player clients (for age-gated/private videos)
+        lambda: {**with_cookie_opts, "extractor_args": {"youtube": {"player_client": valid_clients}}} if cookies_path else None,
+        # Strategy 4: WITH cookies + default
+        lambda: with_cookie_opts if cookies_path else None,
     ]
 
     last_exc = None
@@ -484,14 +484,14 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
         if not opts:
             continue
         try:
-            opts = {**opts, "socket_timeout": opts.get("socket_timeout", 10), "no_check_certificate": True}
+            opts = {**opts, "socket_timeout": opts.get("socket_timeout", 15), "no_check_certificate": True}
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=download)
         except Exception as exc:
             last_exc = exc
             continue
 
-    raise last_exc
+    raise last_exc if last_exc else RuntimeError("Extraction failed")
 
 
 def get_video_title(url: str) -> str:
@@ -500,19 +500,14 @@ def get_video_title(url: str) -> str:
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
-            "socket_timeout": 30,
-            "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
-            "extractor_retries": 10,
-            "sleep_requests": 1.0,
+            "socket_timeout": 15,
+            "extractor_retries": 3,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "android", "web"],
+                    "player_client": ["ios", "android", "mweb", "web_embedded"],
                 }
             },
         }
-        cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-        if os.path.exists(cookies_path):
-            ydl_opts["cookiefile"] = cookies_path
         info = extract_with_cookie_fallback(url, ydl_opts, download=False)
         title = info.get("title") or info.get("fulltitle") or "video"
         return sanitize_filename(title)
@@ -864,14 +859,14 @@ def download_video_file(
         cookies_path = get_valid_cookies_path()
 
         attempts = [
-            # Attempt 1: NO COOKIES + android_creator, web_creator, android_vr, web_embedded, mweb (bypasses bot check and bad cookies)
-            {"cookies": None, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"},
-            # Attempt 2: WITH COOKIES + player clients (if cookies file exists)
-            {"cookies": cookies_path, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"} if cookies_path else None,
-            # Attempt 3: WITH COOKIES + default
+            # Attempt 1: NO COOKIES + ios, android, mweb, web_embedded (bypasses bot check & bad cookies)
+            {"cookies": None, "player_client": "ios,android,mweb,web_embedded"},
+            # Attempt 2: NO COOKIES + default
+            {"cookies": None, "player_client": None},
+            # Attempt 3: WITH COOKIES + player clients (if cookies file exists, for age-gated/private videos)
+            {"cookies": cookies_path, "player_client": "ios,android,mweb,web_embedded"} if cookies_path else None,
+            # Attempt 4: WITH COOKIES + default
             {"cookies": cookies_path, "player_client": None} if cookies_path else None,
-            # Attempt 4: NO COOKIES + tv_embedded, ios
-            {"cookies": None, "player_client": "tv_embedded,ios"},
         ]
 
         last_res = None
