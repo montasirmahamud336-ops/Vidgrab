@@ -688,22 +688,21 @@ def download_video_file(
     req: Request = None,
 ):
     client_ip = get_client_ip(req) if req else "unknown"
-    safe_title = sanitize_filename(title) if title else get_video_title(url)
+    clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', url).rstrip('?&')
+    safe_title = sanitize_filename(title) if title else get_video_title(clean_url)
 
     if quality == "mp3_best":
-        ext = ".mp3"
+        ext = "mp3"
     elif quality == "m4a_best":
-        ext = ".m4a"
+        ext = "m4a"
     else:
-        ext = ".mp4"
+        ext = "mp4"
 
-    final_filename = f"{safe_title}{ext}"
-    media_type = mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
-    encoded_fn = quote(final_filename, safe='')
+    final_filename = f"{safe_title}.{ext}"
+    temp_id = secrets.token_hex(6)
+    temp_template = os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.%(ext)s")
 
     settings = build_download_settings(quality)
-
-    clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', url).rstrip('?&')
 
     cmd = [
         sys.executable, "-m", "yt_dlp",
@@ -711,11 +710,11 @@ def download_video_file(
         "--no-progress",
         "--no-check-certificates",
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "--extractor-retries", "10",
+        "--extractor-retries", "5",
         "--sleep-requests", "0.5",
         "--extractor-args", "youtube:player_client=ios,android,mweb,web",
         "-f", settings["format"],
-        "-o", "-",
+        "-o", temp_template,
         "--ffmpeg-location", get_ffmpeg_binary_path(),
     ]
 
@@ -735,42 +734,39 @@ def download_video_file(
 
     cmd.append(clean_url)
 
-    def generate():
-        process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        stderr_lines = []
+    try:
+        res = sp.run(cmd, capture_output=True, text=True, timeout=180)
+        if res.returncode != 0:
+            raise RuntimeError(f"yt-dlp download failed: {res.stderr[:300]}")
 
-        def read_stderr():
-            for line in iter(process.stderr.readline, b""):
-                stderr_lines.append(line)
+        # Find the created temp file
+        matching_files = glob.glob(os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.*"))
+        if not matching_files:
+            raise RuntimeError("Downloaded file not found on server")
 
-        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-        stderr_thread.start()
+        downloaded_filepath = matching_files[0]
+        file_size = get_file_size_bytes(downloaded_filepath)
+        log_download(url=url, title=safe_title, quality=quality, file_size=file_size, client_ip=client_ip)
 
-        try:
-            for chunk in iter(lambda: process.stdout.read(65536), b""):
-                yield chunk
-        finally:
-            process.stdout.close()
-            process.wait(timeout=30)
-            stderr_thread.join(timeout=5)
+        def cleanup_temp():
+            try:
+                if os.path.exists(downloaded_filepath):
+                    os.remove(downloaded_filepath)
+            except Exception:
+                pass
 
-            if process.returncode != 0:
-                error_text = b"".join(stderr_lines).decode("utf-8", errors="replace")
-                raise RuntimeError(f"yt-dlp failed (code {process.returncode}): {error_text[:500]}")
+        media_type = mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
+        encoded_fn = quote(final_filename, safe='')
 
-    log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
-    ads_cfg = load_ads_config().get("redirect_ads", {})
-    if ads_cfg.get("daily_free_download", False):
-        free_log = load_daily_free_log()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        free_log[client_ip] = today
-        save_daily_free_log(free_log)
-
-    return StreamingResponse(
-        generate(),
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
-    )
+        return FileResponse(
+            path=downloaded_filepath,
+            media_type=media_type,
+            filename=final_filename,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
+            background=BackgroundTask(cleanup_temp)
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/download-playlist")
