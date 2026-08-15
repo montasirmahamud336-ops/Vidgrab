@@ -828,7 +828,7 @@ def download_video_file(
         "--no-playlist",
         "--no-progress",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android,ios,mweb",
+        "--extractor-args", "youtube:player_client=tv_embedded,mweb,android",
         "-o", temp_template,
     ]
 
@@ -850,14 +850,14 @@ def download_video_file(
     try:
         res = sp.run(cmd, capture_output=True, text=True, timeout=180)
 
-        # Fallback 1: simplified player client
+        # Fallback 1: tv_embedded player client (bypasses bot verification)
         if res.returncode != 0:
             fallback_cmd = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
-                "--extractor-args", "youtube:player_client=ios,mweb",
+                "--extractor-args", "youtube:player_client=tv_embedded",
                 "-f", "best[ext=mp4]/best/b",
                 "-o", temp_template,
             ]
@@ -868,13 +868,14 @@ def download_video_file(
             fallback_cmd.append(clean_url)
             res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
 
-        # Fallback 2: default yt-dlp execution
+        # Fallback 2: mweb,tv player client
         if res.returncode != 0:
             final_fallback = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
+                "--extractor-args", "youtube:player_client=mweb,tv",
                 "-f", "b/best",
                 "-o", temp_template,
             ]
