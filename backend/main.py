@@ -29,7 +29,7 @@ import requests
 import uuid
 
 
-DOWNLOAD_DIR = os.environ.get("VIDGRAB_DOWNLOAD_DIR") or os.path.join(os.path.expanduser("~"), "Downloads")
+DOWNLOAD_DIR = os.environ.get("VIDGRAB_DOWNLOAD_DIR") or os.path.join(tempfile.gettempdir(), "vidgrab_downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 if getattr(sys, "frozen", False):
@@ -816,8 +816,7 @@ def download_video_file(
         "--no-progress",
         "--no-check-certificates",
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "--extractor-retries", "5",
-        "--sleep-requests", "0.5",
+        "--extractor-args", "youtube:player_client=android,ios,mweb",
         "-o", temp_template,
     ]
 
@@ -856,6 +855,7 @@ def download_video_file(
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
+                "--extractor-args", "youtube:player_client=ios,mweb",
                 "-f", "best[ext=mp4]/best/b",
                 "-o", temp_template,
             ]
