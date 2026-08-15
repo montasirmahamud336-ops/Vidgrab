@@ -28,5 +28,10 @@ build/
 # Node
 node_modules/
 
-# Next.js
-.next/
+# Flutter & Android Build Outputs
+mobile_app/.dart_tool/
+mobile_app/build/
+mobile_app/android/.gradle/
+mobile_app/android/local.properties
+mobile_app/.flutter-plugins-dependencies
+
