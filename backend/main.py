@@ -70,13 +70,13 @@ def test_options():
     ig_url = "https://www.instagram.com/reel/DcB-hoQzBIU/"
 
     tests = [
-        ("yt_ios_jsnode", yt_url, ["--js-runtimes", "node", "--extractor-args", "youtube:player_client=ios"]),
-        ("yt_android_jsnode", yt_url, ["--js-runtimes", "node", "--extractor-args", "youtube:player_client=android"]),
-        ("yt_mweb_jsnode", yt_url, ["--js-runtimes", "node", "--extractor-args", "youtube:player_client=mweb"]),
-        ("yt_web_jsnode", yt_url, ["--js-runtimes", "node", "--extractor-args", "youtube:player_client=web"]),
-        ("yt_default_jsnode", yt_url, ["--js-runtimes", "node"]),
+        ("yt_android", yt_url, ["--extractor-args", "youtube:player_client=android"]),
+        ("yt_mweb", yt_url, ["--extractor-args", "youtube:player_client=mweb"]),
+        ("yt_ios", yt_url, ["--extractor-args", "youtube:player_client=ios"]),
+        ("yt_skip_web", yt_url, ["--extractor-args", "youtube:player_skip=web"]),
+        ("yt_web_embedded", yt_url, ["--extractor-args", "youtube:player_client=web_embedded"]),
         ("ig_default", ig_url, []),
-        ("ig_jsnode", ig_url, ["--js-runtimes", "node"]),
+        ("ig_mobile_ua", ig_url, ["--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"]),
     ]
 
     for name, target_url, extra_flags in tests:
@@ -87,6 +87,19 @@ def test_options():
             "stdout_len": len(res.stdout),
             "stderr": res.stderr[:300] if res.stderr else "OK"
         }
+
+    # Test Cobalt API for YouTube & Instagram
+    try:
+        cob_yt = requests.post("https://api.cobalt.tools/", json={"url": yt_url}, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
+        results["cobalt_yt"] = {"status": cob_yt.status_code, "body": cob_yt.text[:300]}
+    except Exception as e:
+        results["cobalt_yt"] = {"error": str(e)}
+
+    try:
+        cob_ig = requests.post("https://api.cobalt.tools/", json={"url": ig_url}, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
+        results["cobalt_ig"] = {"status": cob_ig.status_code, "body": cob_ig.text[:300]}
+    except Exception as e:
+        results["cobalt_ig"] = {"error": str(e)}
 
     return results
 
