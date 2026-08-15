@@ -204,7 +204,14 @@ class DownloadProvider extends ChangeNotifier {
       final response = await client.send(http.Request('GET', Uri.parse(downloadUrl)));
 
       if (response.statusCode != 200) {
-        throw Exception('Download server returned error ${response.statusCode}');
+        final errText = await response.stream.bytesToString();
+        try {
+          final decoded = jsonDecode(errText);
+          final msg = decoded['detail'] ?? errText;
+          throw Exception(msg);
+        } catch (_) {
+          throw Exception(errText.isNotEmpty ? errText : 'Server error ${response.statusCode}');
+        }
       }
 
       Directory dir;

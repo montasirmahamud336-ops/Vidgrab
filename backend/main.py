@@ -833,16 +833,6 @@ def download_video_file(
     if os.path.exists(cookies_path):
         cmd.extend(["--cookies", cookies_path])
 
-    cached_path = get_cached_info_path(clean_url)
-    if cached_path and os.path.exists(cached_path):
-        try:
-            with open(cached_path, 'r', encoding='utf-8') as f:
-                d = json.load(f)
-                if d.get("formats"):
-                    cmd.extend(["--load-info-json", cached_path])
-        except Exception:
-            pass
-
     cmd.append(clean_url)
 
     try:
