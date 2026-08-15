@@ -423,11 +423,35 @@ def cleanup_partial_downloads(directory: str):
                 pass
 
 
+def get_valid_cookies_path() -> Optional[str]:
+    possible_paths = [
+        os.path.join(BASE_DIR, "cookies.txt"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt"),
+        "/root/vidgrab_backend/cookies.txt",
+        "/root/vidgrab_backend/backend/cookies.txt",
+        "/root/cookies.txt",
+        "/tmp/cookies.txt",
+    ]
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.getsize(path) > 10:
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if "# Netscape HTTP Cookie File" not in content and "# HTTP Cookie File" not in content:
+                    new_content = "# Netscape HTTP Cookie File\n# http://www.netscape.com/newsref/std/cookie_spec.html\n# Generated cookie file\n\n" + content
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+            except Exception:
+                pass
+            return path
+    return None
+
+
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
     """Try fast strategies to extract video info while preserving cookies."""
-    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+    cookies_path = get_valid_cookies_path()
     base_opts = ydl_opts.copy()
-    if os.path.exists(cookies_path):
+    if cookies_path:
         base_opts["cookiefile"] = cookies_path
 
     strategies = [
@@ -838,8 +862,8 @@ def download_video_file(
     else:
         cmd.extend(["-f", "best[ext=mp4]/best/b"])
 
-    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-    if os.path.exists(cookies_path):
+    cookies_path = get_valid_cookies_path()
+    if cookies_path:
         cmd.extend(["--cookies", cookies_path])
 
     cmd.append(clean_url)
@@ -860,7 +884,7 @@ def download_video_file(
             ]
             if ffmpeg_bin:
                 fallback_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-            if os.path.exists(cookies_path):
+            if cookies_path:
                 fallback_cmd.extend(["--cookies", cookies_path])
             fallback_cmd.append(clean_url)
             res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
@@ -876,7 +900,7 @@ def download_video_file(
                 "-f", "b/best",
                 "-o", temp_template,
             ]
-            if os.path.exists(cookies_path):
+            if cookies_path:
                 final_fallback.extend(["--cookies", cookies_path])
             final_fallback.append(clean_url)
             res = sp.run(final_fallback, capture_output=True, text=True, timeout=180)
