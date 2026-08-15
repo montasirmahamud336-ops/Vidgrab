@@ -424,30 +424,27 @@ def cleanup_partial_downloads(directory: str):
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    """Try fast strategies to extract video info without slow browser db locks."""
+    """Try fast strategies to extract video info while preserving cookies."""
+    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+    base_opts = ydl_opts.copy()
+    if os.path.exists(cookies_path):
+        base_opts["cookiefile"] = cookies_path
 
-    def _without_cookies(o: dict) -> dict:
-        updated = o.copy()
-        updated.pop("cookiefile", None)
-        updated.pop("cookiesfrombrowser", None)
-        return updated
-
-    # Fast strategies: max 4 lightweight options, 8s timeout each
     strategies = [
-        # 1. As requested with 8s socket_timeout
-        lambda o: {**o, "socket_timeout": o.get("socket_timeout", 8), "no_check_certificate": True},
-        # 2. ios client
-        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["ios"]}}},
-        # 3. android client
-        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        # 4. web client fallback
-        lambda o: {**_without_cookies(o), "socket_timeout": 8, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["web"]}}},
+        # 1. As requested with cookies
+        lambda o: {**o, "socket_timeout": o.get("socket_timeout", 10), "no_check_certificate": True},
+        # 2. android_vr, web_embedded
+        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android_vr", "web_embedded"]}}},
+        # 3. android_creator, web_creator
+        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator"]}}},
+        # 4. tv_embedded
+        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
     ]
 
     last_exc = None
     for strategy in strategies:
         try:
-            retry_opts = strategy(ydl_opts)
+            retry_opts = strategy(base_opts)
             with yt_dlp.YoutubeDL(retry_opts) as ydl:
                 return ydl.extract_info(url, download=download)
         except Exception as exc:
