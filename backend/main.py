@@ -952,6 +952,36 @@ def download_video_file(
                 break
 
         if not last_res or last_res.returncode != 0:
+            # ── Direct CDN Stream Fallback ──
+            try:
+                get_url_opts = [
+                    sys.executable, "-m", "yt_dlp",
+                    "--no-playlist", "--no-progress", "--no-check-certificates", "-g",
+                    "-f", "b/best"
+                ]
+                if cookies_path:
+                    get_url_opts.extend(["--cookies", cookies_path])
+                get_url_opts.append(clean_url)
+
+                url_res = sp.run(get_url_opts, capture_output=True, text=True, timeout=25)
+                if url_res.returncode == 0 and url_res.stdout.strip():
+                    stream_url = url_res.stdout.strip().splitlines()[0]
+                    log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
+
+                    remote_req = requests.get(stream_url, stream=True, timeout=30, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                    })
+                    encoded_fn = quote(final_filename, safe='')
+                    headers = {
+                        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
+                        "Content-Type": remote_req.headers.get("Content-Type", "video/mp4"),
+                    }
+                    if "Content-Length" in remote_req.headers:
+                        headers["Content-Length"] = remote_req.headers["Content-Length"]
+                    return StreamingResponse(remote_req.iter_content(chunk_size=1024 * 512), headers=headers)
+            except Exception:
+                pass
+
             clean_err = extract_clean_error(last_res.stderr if last_res else "Download failed")
             raise RuntimeError(f"Download failed: {clean_err}")
 
