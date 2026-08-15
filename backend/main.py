@@ -287,8 +287,8 @@ class AdsConfigUpdate(BaseModel):
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
-def get_ffmpeg_binary_path() -> str:
-    """Return absolute path to ffmpeg binary from imageio_ffmpeg or system PATH."""
+def get_ffmpeg_binary_path() -> Optional[str]:
+    """Return absolute path to ffmpeg binary from imageio_ffmpeg or system PATH, or None."""
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         if ffmpeg_exe and os.path.exists(ffmpeg_exe):
@@ -296,9 +296,9 @@ def get_ffmpeg_binary_path() -> str:
     except Exception:
         pass
     shutil_path = shutil.which("ffmpeg")
-    if shutil_path:
+    if shutil_path and os.path.exists(shutil_path):
         return shutil_path
-    return "ffmpeg"
+    return None
 
 
 def build_download_settings(quality: str):
@@ -808,7 +808,7 @@ def download_video_file(
     temp_id = secrets.token_hex(6)
     temp_template = os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.%(ext)s")
 
-    settings = build_download_settings(quality)
+    ffmpeg_bin = get_ffmpeg_binary_path()
 
     cmd = [
         sys.executable, "-m", "yt_dlp",
@@ -818,17 +818,17 @@ def download_video_file(
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "--extractor-retries", "5",
         "--sleep-requests", "0.5",
-        "--extractor-args", "youtube:player_client=ios,android,mweb,web",
-        "-f", settings["format"],
         "-o", temp_template,
-        "--ffmpeg-location", get_ffmpeg_binary_path(),
     ]
 
-    if quality not in ("mp3_best", "m4a_best"):
-        cmd.extend(["--merge-output-format", "mp4"])
-
-    if quality == "mp3_best":
-        cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
+    if ffmpeg_bin:
+        cmd.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])
+        if quality not in ("mp3_best", "m4a_best"):
+            cmd.extend(["--merge-output-format", "mp4"])
+        if quality == "mp3_best":
+            cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
+    else:
+        cmd.extend(["-f", "best[ext=mp4]/best/b"])
 
     cookies_path = os.path.join(BASE_DIR, "cookies.txt")
     if os.path.exists(cookies_path):
@@ -856,14 +856,11 @@ def download_video_file(
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
-                "-f", "b/best/bestvideo+bestaudio",
+                "-f", "best[ext=mp4]/best/b",
                 "-o", temp_template,
-                "--ffmpeg-location", get_ffmpeg_binary_path(),
             ]
-            if quality not in ("mp3_best", "m4a_best"):
-                fallback_cmd.extend(["--merge-output-format", "mp4"])
-            else:
-                fallback_cmd.extend(["-x", "--audio-format", "mp3"])
+            if ffmpeg_bin:
+                fallback_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
             if os.path.exists(cookies_path):
                 fallback_cmd.extend(["--cookies", cookies_path])
             fallback_cmd.append(clean_url)

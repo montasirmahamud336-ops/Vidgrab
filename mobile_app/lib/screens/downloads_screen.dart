@@ -27,6 +27,13 @@ class DownloadsScreen extends StatelessWidget {
             const SizedBox(height: 24),
           ],
 
+          if (provider.failedDownloads.isNotEmpty) ...[
+            Text('Failed Downloads (${provider.failedDownloads.length})', style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            ...provider.failedDownloads.map((item) => _buildFailedTile(context, item)),
+            const SizedBox(height: 24),
+          ],
+
           Text('Downloaded (${provider.completedDownloads.length})', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
 
@@ -39,6 +46,45 @@ class DownloadsScreen extends StatelessWidget {
             )
           else
             ...provider.completedDownloads.map((item) => _buildCompletedTile(context, item)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFailedTile(BuildContext context, DownloadItem item) {
+    final provider = Provider.of<DownloadProvider>(context, listen: false);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181B),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(item.errorMessage ?? 'Download failed', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFFFACC15)),
+            tooltip: 'Retry',
+            onPressed: () => provider.retryDownload(item),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.grey),
+            tooltip: 'Dismiss',
+            onPressed: () => provider.dismissFailedDownload(item),
+          ),
         ],
       ),
     );

@@ -64,9 +64,11 @@ class DownloadItem {
 class DownloadProvider extends ChangeNotifier {
   final List<DownloadItem> _activeDownloads = [];
   final List<DownloadItem> _completedDownloads = [];
+  final List<DownloadItem> _failedDownloads = [];
 
   List<DownloadItem> get activeDownloads => _activeDownloads;
   List<DownloadItem> get completedDownloads => _completedDownloads;
+  List<DownloadItem> get failedDownloads => _failedDownloads;
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -256,15 +258,32 @@ class DownloadProvider extends ChangeNotifier {
       _completedDownloads.insert(0, item);
       _savePersistedDownloads();
       notifyListeners();
-
       _showCompletedNotification(item.title);
     } catch (e) {
       item.status = 'failed';
       item.errorMessage = ApiService.sanitizeErrorMessage(e.toString());
       _activeDownloads.remove(item);
+      if (!_failedDownloads.contains(item)) {
+        _failedDownloads.insert(0, item);
+      }
       notifyListeners();
       _showFailedNotification(item.title, item.errorMessage ?? 'Download failed');
     }
+  }
+
+  void retryDownload(DownloadItem item) {
+    _failedDownloads.remove(item);
+    item.status = 'downloading';
+    item.errorMessage = null;
+    item.progress = 0.0;
+    _activeDownloads.insert(0, item);
+    notifyListeners();
+    _runDownload(item);
+  }
+
+  void dismissFailedDownload(DownloadItem item) {
+    _failedDownloads.remove(item);
+    notifyListeners();
   }
 
   void _showStartNotification(String title) async {
