@@ -453,28 +453,39 @@ def get_valid_cookies_path() -> Optional[str]:
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    """Try fast strategies to extract video info while preserving cookies."""
+    """Try fast strategies to extract video info, fallback to no-cookies if cookie file fails."""
     cookies_path = get_valid_cookies_path()
-    base_opts = ydl_opts.copy()
+    
+    # 1. Strategies WITH cookies (if available)
+    with_cookie_opts = ydl_opts.copy()
     if cookies_path:
-        base_opts["cookiefile"] = cookies_path
+        with_cookie_opts["cookiefile"] = cookies_path
+
+    # 2. Strategies WITHOUT cookies (in case cookies are broken/expired/rejected)
+    no_cookie_opts = ydl_opts.copy()
+    no_cookie_opts.pop("cookiefile", None)
 
     strategies = [
-        # 1. As requested with cookies
-        lambda o: {**o, "socket_timeout": o.get("socket_timeout", 10), "no_check_certificate": True},
-        # 2. android_vr, web_embedded
-        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android_vr", "web_embedded"]}}},
-        # 3. android_creator, web_creator
-        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator"]}}},
-        # 4. tv_embedded
-        lambda o: {**o, "socket_timeout": 10, "no_check_certificate": True, "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        # Strategy 1: With cookies + default
+        lambda: with_cookie_opts if cookies_path else None,
+        # Strategy 2: With cookies + player clients
+        lambda: {**with_cookie_opts, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator", "android_vr"]}}} if cookies_path else None,
+        # Strategy 3: WITHOUT cookies + android_creator, web_creator, android_vr, web_embedded, mweb
+        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": ["android_creator", "web_creator", "android_vr", "web_embedded", "mweb"]}}},
+        # Strategy 4: WITHOUT cookies + tv_embedded, ios
+        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": ["tv_embedded", "ios"]}}},
+        # Strategy 5: WITHOUT cookies + default
+        lambda: no_cookie_opts,
     ]
 
     last_exc = None
-    for strategy in strategies:
+    for get_opts in strategies:
+        opts = get_opts()
+        if not opts:
+            continue
         try:
-            retry_opts = strategy(base_opts)
-            with yt_dlp.YoutubeDL(retry_opts) as ydl:
+            opts = {**opts, "socket_timeout": opts.get("socket_timeout", 10), "no_check_certificate": True}
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=download)
         except Exception as exc:
             last_exc = exc
@@ -876,37 +887,35 @@ def download_video_file(
     try:
         res = sp.run(cmd, capture_output=True, text=True, timeout=180)
 
-        # Fallback 1: android_vr, web_embedded player client (bypasses bot verification)
+        # Fallback 1: android_creator, web_creator, android_vr, web_embedded, mweb WITHOUT cookies (bypasses bot verification and bad cookies)
         if res.returncode != 0:
             fallback_cmd = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
-                "--extractor-args", "youtube:player_client=android_vr,web_embedded",
+                "--extractor-args", "youtube:player_client=android_creator,web_creator,android_vr,web_embedded,mweb",
                 "-f", "best[ext=mp4]/best/b",
                 "-o", temp_template,
             ]
             if ffmpeg_bin:
                 fallback_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-            if cookies_path:
-                fallback_cmd.extend(["--cookies", cookies_path])
             fallback_cmd.append(clean_url)
             res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
 
-        # Fallback 2: tv_embedded, mweb player client
+        # Fallback 2: tv_embedded, ios player client WITHOUT cookies
         if res.returncode != 0:
             final_fallback = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
-                "--extractor-args", "youtube:player_client=tv_embedded,mweb",
+                "--extractor-args", "youtube:player_client=tv_embedded,ios",
                 "-f", "b/best",
                 "-o", temp_template,
             ]
-            if cookies_path:
-                final_fallback.extend(["--cookies", cookies_path])
+            if ffmpeg_bin:
+                final_fallback.extend(["--ffmpeg-location", ffmpeg_bin])
             final_fallback.append(clean_url)
             res = sp.run(final_fallback, capture_output=True, text=True, timeout=180)
 
