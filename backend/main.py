@@ -302,7 +302,8 @@ def get_ffmpeg_binary_path() -> Optional[str]:
 
 
 def build_download_settings(quality: str):
-    if quality == "mp3_best":
+    q_lower = str(quality).lower().strip()
+    if q_lower in ("mp3_best", "mp3"):
         return {
             "format": "bestaudio/best",
             "postprocessors": [
@@ -313,18 +314,22 @@ def build_download_settings(quality: str):
                 }
             ],
         }
-    if quality == "m4a_best":
+    if q_lower in ("m4a_best", "m4a"):
         return {
             "format": "bestaudio[ext=m4a]/bestaudio/best",
             "postprocessors": [],
         }
-    if quality == "best":
+
+    clean_q = q_lower.rstrip('p')
+    if clean_q.isdigit():
+        h = int(clean_q)
         return {
-            "format": "b/best/bestvideo+bestaudio",
+            "format": f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/b/best",
             "postprocessors": [],
         }
+
     return {
-        "format": f"b/best[height<={quality}]/bestvideo[height<={quality}]+bestaudio/best",
+        "format": "b/best[ext=mp4]/best/bestvideo+bestaudio",
         "postprocessors": [],
     }
 
