@@ -860,55 +860,56 @@ def download_video_file(
     settings = build_download_settings(quality)
     ffmpeg_bin = get_ffmpeg_binary_path()
 
-    cookies_path = get_valid_cookies_path()
+    try:
+        cookies_path = get_valid_cookies_path()
 
-    attempts = [
-        # Attempt 1: NO COOKIES + android_creator, web_creator, android_vr, web_embedded, mweb (bypasses bot check and bad cookies)
-        {"cookies": None, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"},
-        # Attempt 2: WITH COOKIES + player clients (if cookies file exists)
-        {"cookies": cookies_path, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"} if cookies_path else None,
-        # Attempt 3: WITH COOKIES + default
-        {"cookies": cookies_path, "player_client": None} if cookies_path else None,
-        # Attempt 4: NO COOKIES + tv_embedded, ios
-        {"cookies": None, "player_client": "tv_embedded,ios"},
-    ]
-
-    last_res = None
-    for att in attempts:
-        if not att:
-            continue
-        c_opts = [
-            sys.executable, "-m", "yt_dlp",
-            "--no-playlist",
-            "--no-progress",
-            "--no-check-certificates",
-            "-o", temp_template,
+        attempts = [
+            # Attempt 1: NO COOKIES + android_creator, web_creator, android_vr, web_embedded, mweb (bypasses bot check and bad cookies)
+            {"cookies": None, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"},
+            # Attempt 2: WITH COOKIES + player clients (if cookies file exists)
+            {"cookies": cookies_path, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"} if cookies_path else None,
+            # Attempt 3: WITH COOKIES + default
+            {"cookies": cookies_path, "player_client": None} if cookies_path else None,
+            # Attempt 4: NO COOKIES + tv_embedded, ios
+            {"cookies": None, "player_client": "tv_embedded,ios"},
         ]
-        if att["player_client"]:
-            c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
 
-        if ffmpeg_bin:
-            c_opts.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])
-            if quality not in ("mp3_best", "m4a_best"):
-                c_opts.extend(["--merge-output-format", "mp4"])
-            if quality == "mp3_best":
-                c_opts.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
-        else:
-            c_opts.extend(["-f", "b/best"])
+        last_res = None
+        for att in attempts:
+            if not att:
+                continue
+            c_opts = [
+                sys.executable, "-m", "yt_dlp",
+                "--no-playlist",
+                "--no-progress",
+                "--no-check-certificates",
+                "-o", temp_template,
+            ]
+            if att["player_client"]:
+                c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
 
-        if att["cookies"]:
-            c_opts.extend(["--cookies", att["cookies"]])
+            if ffmpeg_bin:
+                c_opts.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])
+                if quality not in ("mp3_best", "m4a_best"):
+                    c_opts.extend(["--merge-output-format", "mp4"])
+                if quality == "mp3_best":
+                    c_opts.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
+            else:
+                c_opts.extend(["-f", "b/best"])
 
-        c_opts.append(clean_url)
+            if att["cookies"]:
+                c_opts.extend(["--cookies", att["cookies"]])
 
-        res = sp.run(c_opts, capture_output=True, text=True, timeout=180)
-        last_res = res
-        if res.returncode == 0:
-            break
+            c_opts.append(clean_url)
 
-    if not last_res or last_res.returncode != 0:
-        clean_err = extract_clean_error(last_res.stderr if last_res else "Download failed")
-        raise RuntimeError(f"Download failed: {clean_err}")
+            res = sp.run(c_opts, capture_output=True, text=True, timeout=180)
+            last_res = res
+            if res.returncode == 0:
+                break
+
+        if not last_res or last_res.returncode != 0:
+            clean_err = extract_clean_error(last_res.stderr if last_res else "Download failed")
+            raise RuntimeError(f"Download failed: {clean_err}")
 
         # Find the created temp file
         matching_files = glob.glob(os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.*"))
