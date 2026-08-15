@@ -61,6 +61,9 @@ def get_version():
 @app.get("/test-options")
 def test_options():
     results = {}
+    node_check = sp.run(["node", "-v"], capture_output=True, text=True)
+    results["node_version"] = node_check.stdout.strip() if node_check.returncode == 0 else "NOT INSTALLED"
+
     yt_url = "https://youtu.be/bYqPJaq-BdY"
     ig_url = "https://www.instagram.com/reel/DcB-hoQzBIU/"
 
