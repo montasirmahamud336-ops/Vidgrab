@@ -54,6 +54,10 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
+@app.get("/version")
+def get_version():
+    return {"version": "v2.5_no_cookies_first_474af9b"}
+
 # ── Default ads config ──────────────────────────────────────────────────────
 DEFAULT_ADS_CONFIG = {
     "admin_password": "admin123",
