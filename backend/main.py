@@ -807,7 +807,7 @@ def download_video_file(
     final_filename = f"{safe_title}.{ext}"
     temp_id = secrets.token_hex(6)
     temp_template = os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.%(ext)s")
-
+    settings = build_download_settings(quality)
     ffmpeg_bin = get_ffmpeg_binary_path()
 
     cmd = [
