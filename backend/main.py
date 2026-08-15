@@ -63,6 +63,8 @@ def test_options():
     results = {}
     node_check = sp.run(["node", "-v"], capture_output=True, text=True)
     results["node_version"] = node_check.stdout.strip() if node_check.returncode == 0 else "NOT INSTALLED"
+    results["sys_executable"] = sys.executable
+    results["yt_dlp_version"] = getattr(yt_dlp, "__version__", getattr(yt_dlp.version, "__version__", "unknown"))
 
     yt_url = "https://youtu.be/bYqPJaq-BdY"
     ig_url = "https://www.instagram.com/reel/DcB-hoQzBIU/"
