@@ -860,68 +860,55 @@ def download_video_file(
     settings = build_download_settings(quality)
     ffmpeg_bin = get_ffmpeg_binary_path()
 
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        "--no-playlist",
-        "--no-progress",
-        "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android_creator,web_creator,android_vr,web_embedded,mweb",
-        "-o", temp_template,
+    cookies_path = get_valid_cookies_path()
+
+    attempts = [
+        # Attempt 1: NO COOKIES + android_creator, web_creator, android_vr, web_embedded, mweb (bypasses bot check and bad cookies)
+        {"cookies": None, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"},
+        # Attempt 2: WITH COOKIES + player clients (if cookies file exists)
+        {"cookies": cookies_path, "player_client": "android_creator,web_creator,android_vr,web_embedded,mweb"} if cookies_path else None,
+        # Attempt 3: WITH COOKIES + default
+        {"cookies": cookies_path, "player_client": None} if cookies_path else None,
+        # Attempt 4: NO COOKIES + tv_embedded, ios
+        {"cookies": None, "player_client": "tv_embedded,ios"},
     ]
 
-    if ffmpeg_bin:
-        cmd.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])
-        if quality not in ("mp3_best", "m4a_best"):
-            cmd.extend(["--merge-output-format", "mp4"])
-        if quality == "mp3_best":
-            cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
-    else:
-        cmd.extend(["-f", "best[ext=mp4]/best/b"])
+    last_res = None
+    for att in attempts:
+        if not att:
+            continue
+        c_opts = [
+            sys.executable, "-m", "yt_dlp",
+            "--no-playlist",
+            "--no-progress",
+            "--no-check-certificates",
+            "-o", temp_template,
+        ]
+        if att["player_client"]:
+            c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
 
-    cookies_path = get_valid_cookies_path()
-    if cookies_path:
-        cmd.extend(["--cookies", cookies_path])
+        if ffmpeg_bin:
+            c_opts.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])
+            if quality not in ("mp3_best", "m4a_best"):
+                c_opts.extend(["--merge-output-format", "mp4"])
+            if quality == "mp3_best":
+                c_opts.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
+        else:
+            c_opts.extend(["-f", "b/best"])
 
-    cmd.append(clean_url)
+        if att["cookies"]:
+            c_opts.extend(["--cookies", att["cookies"]])
 
-    try:
-        res = sp.run(cmd, capture_output=True, text=True, timeout=180)
+        c_opts.append(clean_url)
 
-        # Fallback 1: android_creator, web_creator, android_vr, web_embedded, mweb WITHOUT cookies (bypasses bot verification and bad cookies)
-        if res.returncode != 0:
-            fallback_cmd = [
-                sys.executable, "-m", "yt_dlp",
-                "--no-playlist",
-                "--no-progress",
-                "--no-check-certificates",
-                "--extractor-args", "youtube:player_client=android_creator,web_creator,android_vr,web_embedded,mweb",
-                "-f", "best[ext=mp4]/best/b",
-                "-o", temp_template,
-            ]
-            if ffmpeg_bin:
-                fallback_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-            fallback_cmd.append(clean_url)
-            res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
+        res = sp.run(c_opts, capture_output=True, text=True, timeout=180)
+        last_res = res
+        if res.returncode == 0:
+            break
 
-        # Fallback 2: tv_embedded, ios player client WITHOUT cookies
-        if res.returncode != 0:
-            final_fallback = [
-                sys.executable, "-m", "yt_dlp",
-                "--no-playlist",
-                "--no-progress",
-                "--no-check-certificates",
-                "--extractor-args", "youtube:player_client=tv_embedded,ios",
-                "-f", "b/best",
-                "-o", temp_template,
-            ]
-            if ffmpeg_bin:
-                final_fallback.extend(["--ffmpeg-location", ffmpeg_bin])
-            final_fallback.append(clean_url)
-            res = sp.run(final_fallback, capture_output=True, text=True, timeout=180)
-
-        if res.returncode != 0:
-            clean_err = extract_clean_error(res.stderr)
-            raise RuntimeError(f"Download failed: {clean_err}")
+    if not last_res or last_res.returncode != 0:
+        clean_err = extract_clean_error(last_res.stderr if last_res else "Download failed")
+        raise RuntimeError(f"Download failed: {clean_err}")
 
         # Find the created temp file
         matching_files = glob.glob(os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.*"))
