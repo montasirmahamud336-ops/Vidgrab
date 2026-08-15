@@ -287,6 +287,20 @@ class AdsConfigUpdate(BaseModel):
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
+def get_ffmpeg_binary_path() -> str:
+    """Return absolute path to ffmpeg binary from imageio_ffmpeg or system PATH."""
+    try:
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if ffmpeg_exe and os.path.exists(ffmpeg_exe):
+            return ffmpeg_exe
+    except Exception:
+        pass
+    shutil_path = shutil.which("ffmpeg")
+    if shutil_path:
+        return shutil_path
+    return "ffmpeg"
+
+
 def build_download_settings(quality: str):
     if quality == "mp3_best":
         return {
@@ -821,15 +835,42 @@ def download_video_file(
         cmd.extend(["--cookies", cookies_path])
 
     cached_path = get_cached_info_path(clean_url)
-    if cached_path:
-        cmd.extend(["--load-info-json", cached_path])
+    if cached_path and os.path.exists(cached_path):
+        try:
+            with open(cached_path, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+                if d.get("formats"):
+                    cmd.extend(["--load-info-json", cached_path])
+        except Exception:
+            pass
 
     cmd.append(clean_url)
 
     try:
         res = sp.run(cmd, capture_output=True, text=True, timeout=180)
+
+        # Fallback if primary format failed
         if res.returncode != 0:
-            raise RuntimeError(f"yt-dlp download failed: {res.stderr[:300]}")
+            fallback_cmd = [
+                sys.executable, "-m", "yt_dlp",
+                "--no-playlist",
+                "--no-progress",
+                "--no-check-certificates",
+                "-f", "b/best/bestvideo+bestaudio",
+                "-o", temp_template,
+                "--ffmpeg-location", get_ffmpeg_binary_path(),
+            ]
+            if quality not in ("mp3_best", "m4a_best"):
+                fallback_cmd.extend(["--merge-output-format", "mp4"])
+            else:
+                fallback_cmd.extend(["-x", "--audio-format", "mp3"])
+            if os.path.exists(cookies_path):
+                fallback_cmd.extend(["--cookies", cookies_path])
+            fallback_cmd.append(clean_url)
+            res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
+
+        if res.returncode != 0:
+            raise RuntimeError(f"Download failed: {res.stderr[:200] if res.stderr else 'Unknown error'}")
 
         # Find the created temp file
         matching_files = glob.glob(os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.*"))

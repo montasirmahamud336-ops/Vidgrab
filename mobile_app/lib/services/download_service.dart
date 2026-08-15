@@ -261,7 +261,9 @@ class DownloadProvider extends ChangeNotifier {
     } catch (e) {
       item.status = 'failed';
       item.errorMessage = ApiService.sanitizeErrorMessage(e.toString());
+      _activeDownloads.remove(item);
       notifyListeners();
+      _showFailedNotification(item.title, item.errorMessage ?? 'Download failed');
     }
   }
 
@@ -278,6 +280,23 @@ class DownloadProvider extends ChangeNotifier {
       1,
       'VidGrab Download Started',
       title,
+      notificationDetails,
+    );
+  }
+
+  void _showFailedNotification(String title, String error) async {
+    const androidDetails = AndroidNotificationDetails(
+      'vidgrab_downloads',
+      'VidGrab Downloads',
+      channelDescription: 'VidGrab Background Download Notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const notificationDetails = NotificationDetails(android: androidDetails);
+    await _notificationsPlugin.show(
+      3,
+      'Download Failed',
+      '$title: $error',
       notificationDetails,
     );
   }
