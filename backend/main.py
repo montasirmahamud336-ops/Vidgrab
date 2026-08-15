@@ -828,7 +828,7 @@ def download_video_file(
         "--no-playlist",
         "--no-progress",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android_vr,web_embedded,tv_embedded,ios_embedded,mweb",
+        "--extractor-args", "youtube:player_client=android_creator,web_creator,android_vr,web_embedded,mweb",
         "-o", temp_template,
     ]
 
