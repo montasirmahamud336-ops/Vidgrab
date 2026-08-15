@@ -1,36 +1,152 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/api_service.dart';
 import '../services/download_service.dart';
 
 class DownloadBottomSheet extends StatefulWidget {
-  final Map<String, dynamic> videoInfo;
+  final Map<String, dynamic>? videoInfo;
   final String rawUrl;
+  final VoidCallback? onDownloadStarted;
 
-  const DownloadBottomSheet({Key? key, required this.videoInfo, required this.rawUrl}) : super(key: key);
+  const DownloadBottomSheet({
+    Key? key,
+    this.videoInfo,
+    required this.rawUrl,
+    this.onDownloadStarted,
+  }) : super(key: key);
 
   @override
   State<DownloadBottomSheet> createState() => _DownloadBottomSheetState();
 }
 
 class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
+  Map<String, dynamic>? _info;
+  bool _isLoading = false;
+  String? _error;
   String selectedQuality = 'best';
   String selectedExt = 'mp4';
 
   @override
   void initState() {
     super.initState();
-    final videoQualities = widget.videoInfo['video_qualities'] as List<dynamic>? ?? [];
-    if (videoQualities.isNotEmpty) {
-      selectedQuality = videoQualities[0]['value'].toString();
+    if (widget.videoInfo != null) {
+      _info = widget.videoInfo;
+      _initDefaultQuality();
+    } else {
+      _fetchVideoInfo();
+    }
+  }
+
+  void _initDefaultQuality() {
+    if (_info != null) {
+      final videoQualities = _info!['video_qualities'] as List<dynamic>? ?? [];
+      if (videoQualities.isNotEmpty) {
+        selectedQuality = videoQualities[0]['value'].toString();
+      }
+    }
+  }
+
+  Future<void> _fetchVideoInfo() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final info = await ApiService.getVideoInfo(widget.rawUrl);
+      if (mounted) {
+        setState(() {
+          _info = info;
+          _isLoading = false;
+        });
+        _initDefaultQuality();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = ApiService.sanitizeErrorMessage(e.toString());
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _triggerDownload() async {
+    if (_info == null) return;
+    final title = _info!['title'] ?? 'Video';
+    final thumbnail = _info!['thumbnail'] ?? '';
+
+    final downloadProvider = Provider.of<DownloadProvider>(context, listen: false);
+    await downloadProvider.startDownload(
+      title: title,
+      videoUrl: widget.rawUrl,
+      quality: selectedQuality,
+      ext: selectedExt,
+      thumbnail: thumbnail,
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (widget.onDownloadStarted != null) {
+      widget.onDownloadStarted!();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Download started in background!'),
+          backgroundColor: Color(0xFFFACC15),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.videoInfo['title'] ?? 'Video';
-    final thumbnail = widget.videoInfo['thumbnail'] ?? '';
-    final videoQualities = widget.videoInfo['video_qualities'] as List<dynamic>? ?? [];
-    final audioQualities = widget.videoInfo['audio_qualities'] as List<dynamic>? ?? [];
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(30),
+        decoration: const BoxDecoration(
+          color: Color(0xFF18181B),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            CircularProgressIndicator(color: Color(0xFFFACC15)),
+            SizedBox(height: 16),
+            Text('Analyzing video links...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF18181B),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 12),
+            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFACC15)),
+              onPressed: _fetchVideoInfo,
+              child: const Text('Retry', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      );
+    }
+
+    final title = _info?['title'] ?? 'Video';
+    final videoQualities = _info?['video_qualities'] as List<dynamic>? ?? [];
+    final audioQualities = _info?['audio_qualities'] as List<dynamic>? ?? [];
 
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -40,7 +156,7 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Drag handle
           Center(
@@ -56,105 +172,73 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
           const SizedBox(height: 16),
 
           // Title & Header
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: thumbnail.isNotEmpty
-                    ? Image.network(thumbnail, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.movie, size: 40, color: Color(0xFFFACC15)))
-                    : const Icon(Icons.movie, size: 40, color: Color(0xFFFACC15)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          const Text('Download', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-
-          // Audio section
-          const Text('Music', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 6),
-          ...audioQualities.map((aq) {
-            final val = aq['value'].toString();
-            final label = aq['label'].toString();
-            final isSelected = selectedQuality == val;
-            return _buildQualityTile(
-              label: label,
-              icon: Icons.music_note,
-              isSelected: isSelected,
-              onTap: () {
-                setState(() {
-                  selectedQuality = val;
-                  selectedExt = val.contains('mp3') ? 'mp3' : 'm4a';
-                });
-              },
-            );
-          }),
-
-          const SizedBox(height: 12),
-          // Video section
-          const Text('Video', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 6),
-          ...videoQualities.map((vq) {
-            final val = vq['value'].toString();
-            final label = vq['label'].toString();
-            final isSelected = selectedQuality == val;
-            return _buildQualityTile(
-              label: label,
-              icon: Icons.videocam,
-              isSelected: isSelected,
-              onTap: () {
-                setState(() {
+          // Video formats
+          if (videoQualities.isNotEmpty) ...[
+            const Text('Video Resolutions', style: TextStyle(color: Color(0xFFFACC15), fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            ...videoQualities.map((q) {
+              final val = q['value'].toString();
+              final label = q['label'].toString();
+              final isSel = selectedQuality == val && selectedExt == 'mp4';
+              return _buildQualityTile(
+                label: label,
+                icon: Icons.video_file,
+                isSelected: isSel,
+                onTap: () => setState(() {
                   selectedQuality = val;
                   selectedExt = 'mp4';
-                });
-              },
-            );
-          }),
+                }),
+              );
+            }).toList(),
+            const SizedBox(height: 12),
+          ],
 
-          const SizedBox(height: 20),
+          // Audio formats
+          if (audioQualities.isNotEmpty) ...[
+            const Text('Audio Formats', style: TextStyle(color: Color(0xFFFACC15), fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            ...audioQualities.map((q) {
+              final val = q['value'].toString();
+              final label = q['label'].toString();
+              final ext = val.startsWith('mp3') ? 'mp3' : 'm4a';
+              final isSel = selectedQuality == val;
+              return _buildQualityTile(
+                label: label,
+                icon: Icons.music_note,
+                isSelected: isSel,
+                onTap: () => setState(() {
+                  selectedQuality = val;
+                  selectedExt = ext;
+                }),
+              );
+            }).toList(),
+            const SizedBox(height: 16),
+          ],
 
-          // Yellow CTA Button - "Watch ad to download"
+          // Download CTA Button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 48,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFACC15), // SnapTube Yellow
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                backgroundColor: const Color(0xFFFACC15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               ),
-              onPressed: () {
-                Navigator.pop(context);
-                Provider.of<DownloadProvider>(context, listen: false).startDownload(
-                  title: title,
-                  videoUrl: widget.rawUrl,
-                  quality: selectedQuality,
-                  ext: selectedExt,
-                  thumbnail: thumbnail,
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Download started in background...'),
-                    backgroundColor: Color(0xFFFACC15),
-                  ),
-                );
-              },
+              onPressed: _triggerDownload,
               child: const Text(
-                'Watch ad to download',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
+                'Download in Background',
+                style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          const SizedBox(height: 10),
         ],
       ),
     );

@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 
 class DownloadItem {
@@ -18,6 +20,7 @@ class DownloadItem {
   num totalBytes;
   String status; // 'downloading', 'completed', 'failed'
   String? filePath;
+  String? errorMessage;
 
   DownloadItem({
     required this.id,
@@ -31,7 +34,31 @@ class DownloadItem {
     this.totalBytes = 0,
     this.status = 'downloading',
     this.filePath,
+    this.errorMessage,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'videoUrl': videoUrl,
+        'quality': quality,
+        'ext': ext,
+        'thumbnail': thumbnail,
+        'status': status,
+        'filePath': filePath,
+      };
+
+  factory DownloadItem.fromJson(Map<String, dynamic> json) => DownloadItem(
+        id: json['id'] ?? '',
+        title: json['title'] ?? 'Video',
+        videoUrl: json['videoUrl'] ?? '',
+        quality: json['quality'] ?? 'best',
+        ext: json['ext'] ?? 'mp4',
+        thumbnail: json['thumbnail'] ?? '',
+        status: json['status'] ?? 'completed',
+        filePath: json['filePath'],
+        progress: 1.0,
+      );
 }
 
 class DownloadProvider extends ChangeNotifier {
@@ -45,12 +72,96 @@ class DownloadProvider extends ChangeNotifier {
 
   DownloadProvider() {
     _initNotifications();
+    _loadPersistedDownloads();
   }
 
   void _initNotifications() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
     await _notificationsPlugin.initialize(initSettings);
+  }
+
+  Future<void> _loadPersistedDownloads() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? savedJson = prefs.getString('vidgrab_completed_downloads');
+      if (savedJson != null) {
+        final List<dynamic> decoded = jsonDecode(savedJson);
+        _completedDownloads.clear();
+        for (var item in decoded) {
+          final download = DownloadItem.fromJson(Map<String, dynamic>.from(item));
+          if (download.filePath != null && File(download.filePath!).existsSync()) {
+            _completedDownloads.add(download);
+          }
+        }
+      }
+
+      // Also scan VidGrab download directory for external files
+      await _scanDownloadDirectory();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _savePersistedDownloads() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(_completedDownloads.map((e) => e.toJson()).toList());
+      await prefs.setString('vidgrab_completed_downloads', encoded);
+    } catch (_) {}
+  }
+
+  Future<void> _scanDownloadDirectory() async {
+    try {
+      Directory? dir;
+      if (Platform.isAndroid) {
+        final externalDir = Directory('/storage/emulated/0/Download/VidGrab');
+        if (await externalDir.exists()) dir = externalDir;
+      }
+      dir ??= await getExternalStorageDirectory();
+
+      if (dir != null && await dir.exists()) {
+        final entities = dir.listSync();
+        for (var entity in entities) {
+          if (entity is File) {
+            final path = entity.path;
+            final basename = path.split(Platform.pathSeparator).last;
+            final isAlreadyListed = _completedDownloads.any((d) => d.filePath == path);
+
+            if (!isAlreadyListed && (basename.endsWith('.mp4') || basename.endsWith('.mp3') || basename.endsWith('.m4a'))) {
+              final ext = basename.split('.').last;
+              final title = basename.replaceAll(RegExp(r'\.(mp4|mp3|m4a)$'), '').replaceAll('_', ' ');
+              _completedDownloads.add(
+                DownloadItem(
+                  id: entity.statSync().modified.millisecondsSinceEpoch.toString(),
+                  title: title,
+                  videoUrl: '',
+                  quality: ext == 'mp3' ? 'mp3' : 'HD',
+                  ext: ext,
+                  thumbnail: '',
+                  status: 'completed',
+                  filePath: path,
+                  progress: 1.0,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> deleteDownload(DownloadItem item) async {
+    try {
+      if (item.filePath != null) {
+        final file = File(item.filePath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
+    } catch (_) {}
+    _completedDownloads.remove(item);
+    _savePersistedDownloads();
+    notifyListeners();
   }
 
   Future<void> startDownload({
@@ -60,10 +171,11 @@ class DownloadProvider extends ChangeNotifier {
     required String ext,
     required String thumbnail,
   }) async {
-    // Request storage permissions on Android
     if (Platform.isAndroid) {
-      await Permission.storage.request();
-      await Permission.notification.request();
+      try {
+        await Permission.storage.request();
+        await Permission.notification.request();
+      } catch (_) {}
     }
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -79,20 +191,37 @@ class DownloadProvider extends ChangeNotifier {
     _activeDownloads.insert(0, item);
     notifyListeners();
 
+    _showStartNotification(item.title);
     _runDownload(item);
   }
 
   Future<void> _runDownload(DownloadItem item) async {
     try {
       final downloadUrl = ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
-      final request = http.Request('GET', Uri.parse(downloadUrl));
-      final response = await http.Client().send(request);
+      final client = http.Client();
+      final response = await client.send(http.Request('GET', Uri.parse(downloadUrl)));
 
-      Directory? dir;
+      if (response.statusCode != 200) {
+        throw Exception('Download server returned error ${response.statusCode}');
+      }
+
+      Directory dir;
       if (Platform.isAndroid) {
-        dir = Directory('/storage/emulated/0/Download');
-        if (!await dir.exists()) {
-          dir = await getExternalStorageDirectory();
+        try {
+          final externalDir = Directory('/storage/emulated/0/Download/VidGrab');
+          if (!await externalDir.exists()) {
+            await externalDir.create(recursive: true);
+          }
+          dir = externalDir;
+        } catch (_) {
+          try {
+            dir = Directory('/storage/emulated/0/Download');
+            if (!await dir.exists()) {
+              await dir.create(recursive: true);
+            }
+          } catch (_) {
+            dir = (await getExternalStorageDirectory()) ?? (await getApplicationDocumentsDirectory());
+          }
         }
       } else {
         dir = await getApplicationDocumentsDirectory();
@@ -100,7 +229,7 @@ class DownloadProvider extends ChangeNotifier {
 
       final safeTitle = item.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').replaceAll(' ', '_');
       final fileName = '${safeTitle}_${item.quality}.${item.ext}';
-      final file = File('${dir!.path}/$fileName');
+      final file = File('${dir.path}/$fileName');
 
       item.totalBytes = response.contentLength ?? 0;
       int received = 0;
@@ -125,26 +254,45 @@ class DownloadProvider extends ChangeNotifier {
 
       _activeDownloads.remove(item);
       _completedDownloads.insert(0, item);
+      _savePersistedDownloads();
       notifyListeners();
 
       _showCompletedNotification(item.title);
     } catch (e) {
       item.status = 'failed';
+      item.errorMessage = ApiService.sanitizeErrorMessage(e.toString());
       notifyListeners();
     }
   }
 
+  void _showStartNotification(String title) async {
+    const androidDetails = AndroidNotificationDetails(
+      'vidgrab_downloads',
+      'VidGrab Downloads',
+      channelDescription: 'VidGrab Background Download Notifications',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+    );
+    const notificationDetails = NotificationDetails(android: androidDetails);
+    await _notificationsPlugin.show(
+      1,
+      'VidGrab Download Started',
+      title,
+      notificationDetails,
+    );
+  }
+
   void _showCompletedNotification(String title) async {
     const androidDetails = AndroidNotificationDetails(
-      'snaptube_downloads',
-      'Media Downloads',
-      channelDescription: 'SnapTube Background Download Notifications',
+      'vidgrab_downloads',
+      'VidGrab Downloads',
+      channelDescription: 'VidGrab Background Download Notifications',
       importance: Importance.high,
       priority: Priority.high,
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
-      0,
+      2,
       'Download Complete!',
       title,
       notificationDetails,

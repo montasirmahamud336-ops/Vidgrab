@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../widgets/download_bottom_sheet.dart';
 
@@ -25,11 +26,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleSearch(String url) async {
-    if (url.trim().isEmpty) return;
+    final cleanUrl = url.trim();
+    if (cleanUrl.isEmpty) return;
     setState(() => _isLoading = true);
 
     try {
-      final info = await ApiService.getVideoInfo(url.trim());
+      final info = await ApiService.getVideoInfo(cleanUrl);
       setState(() => _isLoading = false);
 
       if (!mounted) return;
@@ -37,15 +39,93 @@ class _HomeScreenState extends State<HomeScreen> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => DownloadBottomSheet(videoInfo: info, rawUrl: url.trim()),
+        builder: (_) => DownloadBottomSheet(videoInfo: info, rawUrl: cleanUrl),
       );
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(ApiService.sanitizeErrorMessage(e.toString())),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
+  }
+
+  void _onShortcutTap(String platformName) async {
+    HapticFeedback.lightImpact();
+    // Try to auto-paste from clipboard if available
+    ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    String pastedText = data?.text?.trim() ?? '';
+    
+    if (pastedText.isNotEmpty && (pastedText.startsWith('http://') || pastedText.startsWith('https://'))) {
+      _urlController.text = pastedText;
+      _handleSearch(pastedText);
+      return;
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF18181B),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.link, color: Color(0xFFFACC15)),
+                const SizedBox(width: 10),
+                Text('Download from $platformName', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('Copy any video link from $platformName and paste it below:', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _urlController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Paste $platformName URL here...',
+                hintStyle: const TextStyle(color: Colors.grey),
+                filled: true,
+                fillColor: const Color(0xFF27272A),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.content_paste, color: Color(0xFFFACC15)),
+                  onPressed: () async {
+                    ClipboardData? cb = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (cb?.text != null) {
+                      _urlController.text = cb!.text!.trim();
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFACC15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handleSearch(_urlController.text);
+                },
+                child: const Text('Analyze Video', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -57,20 +137,30 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
-              const SizedBox(height: 20),
-              // SnapTube Logo & Header
-              const Center(
-                child: Text(
-                  'Snaptube',
-                  style: TextStyle(
-                    color: Color(0xFFFACC15),
-                    fontSize: 36,
-                    fontWeight: FontWeight.black,
-                    letterSpacing: -1,
-                  ),
+              const SizedBox(height: 10),
+              // VidGrab Logo & Header
+              Center(
+                child: Column(
+                  children: [
+                    Image.asset(
+                      'assets/logo.png',
+                      height: 56,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.video_library, size: 56, color: Color(0xFFFACC15)),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'VidGrab',
+                      style: TextStyle(
+                        color: Color(0xFFFACC15),
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
 
               // Search Bar
               Container(
@@ -145,17 +235,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSiteShortcut(String name, IconData icon, Color color) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: const Color(0xFF18181B),
-          child: Icon(icon, color: color, size: 26),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _onShortcutTap(name),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: const Color(0xFF18181B),
+              child: Icon(icon, color: color, size: 26),
+            ),
+            const SizedBox(height: 6),
+            Text(name, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(name, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-      ],
+      ),
     );
   }
 }

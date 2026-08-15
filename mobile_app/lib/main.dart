@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'services/download_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/settings_screen.dart';
+import 'widgets/download_bottom_sheet.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +25,7 @@ class SnapTubeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SnapTube Downloader',
+      title: 'VidGrab Downloader',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF09090B),
@@ -48,7 +50,8 @@ class MainNavigationWrapper extends StatefulWidget {
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
   String? _sharedUrl;
-  late StreamSubscription _intentSubscription;
+  bool _isOverlayMode = false;
+  StreamSubscription? _intentSubscription;
 
   @override
   void initState() {
@@ -58,14 +61,16 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
   void _initShareIntent() {
     // Listen for shared text/links when app is in memory
-    _intentSubscription = ReceiveSharingIntent.getTextStream().listen((String text) {
-      _processSharedText(text);
+    _intentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _processSharedText(value.first.path);
+      }
     }, onError: (err) {});
 
     // Listen for shared text/links when app is opened from closed state
-    ReceiveSharingIntent.getInitialText().then((String? text) {
-      if (text != null && text.isNotEmpty) {
-        _processSharedText(text);
+    ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _processSharedText(value.first.path);
       }
     });
   }
@@ -74,21 +79,62 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     final urlRegExp = RegExp(r'https?://[^\s]+');
     final match = urlRegExp.firstMatch(text);
     if (match != null) {
+      final url = match.group(0)!;
       setState(() {
-        _sharedUrl = match.group(0);
-        _currentIndex = 0; // Switch to Search/Home tab
+        _sharedUrl = url;
+        _isOverlayMode = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showQuickShareOverlay(url);
       });
     }
   }
 
+  void _showQuickShareOverlay(String url) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54, // Semi-transparent backdrop over Facebook/YouTube
+      builder: (modalContext) => DownloadBottomSheet(
+        rawUrl: url,
+        onDownloadStarted: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('VidGrab: Download started in background!'),
+              backgroundColor: Color(0xFFFACC15),
+            ),
+          );
+          // Return user directly back to Facebook/YouTube/Instagram
+          Future.delayed(const Duration(milliseconds: 500), () {
+            SystemNavigator.pop();
+          });
+        },
+      ),
+    ).then((_) {
+      if (_isOverlayMode) {
+        // If bottom sheet dismissed, return to social media app
+        SystemNavigator.pop();
+      }
+    });
+  }
+
   @override
   void dispose() {
-    _intentSubscription.cancel();
+    _intentSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // If launched via Share Intent, render transparent Scaffold over social media app!
+    if (_isOverlayMode) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(),
+      );
+    }
+
     final screens = [
       HomeScreen(initialUrl: _sharedUrl),
       const DownloadsScreen(),

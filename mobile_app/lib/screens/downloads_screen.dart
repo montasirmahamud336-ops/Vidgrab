@@ -58,7 +58,7 @@ class DownloadsScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
@@ -74,15 +74,15 @@ class DownloadsScreen extends StatelessWidget {
   }
 
   Widget _buildCompletedTile(BuildContext context, DownloadItem item) {
+    final provider = Provider.of<DownloadProvider>(context, listen: false);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF18181B),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        contentPadding: EdgeInsets.zero,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: item.thumbnail.isNotEmpty
@@ -90,10 +90,21 @@ class DownloadsScreen extends StatelessWidget {
               : const Icon(Icons.play_circle_fill, color: Color(0xFFFACC15), size: 40),
         ),
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text('${item.quality.toUpperCase()} • MP4', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        trailing: IconButton(
+        subtitle: Text('${item.quality.toUpperCase()} • ${item.ext.toUpperCase()}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.grey),
-          onPressed: () {},
+          color: const Color(0xFF27272A),
+          onSelected: (value) {
+            if (value == 'play' && item.filePath != null) {
+              OpenFilex.open(item.filePath!);
+            } else if (value == 'delete') {
+              provider.deleteDownload(item);
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(value: 'play', child: Row(children: [Icon(Icons.play_arrow, color: Colors.white, size: 20), SizedBox(width: 8), Text('Play', style: TextStyle(color: Colors.white))])),
+            const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.redAccent, size: 20), SizedBox(width: 8), Text('Delete', style: TextStyle(color: Colors.redAccent))])),
+          ],
         ),
         onTap: () {
           if (item.filePath != null) {

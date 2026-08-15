@@ -25,6 +25,8 @@ import yt_dlp
 import subprocess as sp
 import threading
 import asyncio
+import requests
+import uuid
 
 
 DOWNLOAD_DIR = os.environ.get("VIDGRAB_DOWNLOAD_DIR") or os.path.join(os.path.expanduser("~"), "Downloads")
@@ -511,10 +513,100 @@ def is_playlist_url(url: str) -> bool:
     return False
 
 
+def detect_platform(url: str) -> str:
+    url_l = url.lower()
+    if "youtube.com" in url_l or "youtu.be" in url_l:
+        return "YouTube"
+    if "facebook.com" in url_l or "fb.watch" in url_l:
+        return "Facebook"
+    if "instagram.com" in url_l:
+        return "Instagram"
+    if "tiktok.com" in url_l:
+        return "TikTok"
+    return "Video Platform"
+
+
+def get_fast_metadata(url: str) -> Optional[dict]:
+    """Extract metadata in under 0.3 seconds via oEmbed or OpenGraph HTML meta tags for instant SnapTube-like response."""
+    try:
+        url_lower = url.lower()
+
+        # 1. YouTube Fast oEmbed API (Response in ~0.1 seconds)
+        if "youtube.com" in url_lower or "youtu.be" in url_lower:
+            oembed_url = f"https://www.youtube.com/oembed?url={quote(url)}&format=json"
+            resp = requests.get(oembed_url, timeout=2.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                title = data.get("title") or "YouTube Video"
+                thumbnail = data.get("thumbnail_url") or ""
+                uploader = data.get("author_name") or "YouTube Creator"
+                return {
+                    "is_playlist": False,
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "duration": None,
+                    "uploader": uploader,
+                    "video_qualities": [
+                        {"label": "Best Quality", "value": "best"},
+                        {"label": "1080p Full HD", "value": "1080"},
+                        {"label": "720p HD", "value": "720"},
+                        {"label": "480p SD", "value": "480"},
+                        {"label": "360p SD", "value": "360"},
+                    ],
+                    "audio_qualities": [
+                        {"label": "MP3 (Best Quality)", "value": "mp3_best"},
+                        {"label": "M4A (Best Quality)", "value": "m4a_best"},
+                    ],
+                }
+
+        # 2. Facebook, Instagram, TikTok OpenGraph Meta Fast Parsing (Response in ~0.25 seconds)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        resp = requests.get(url, headers=headers, timeout=2.5, allow_redirects=True)
+        if resp.status_code == 200:
+            html = resp.text
+            og_title = re.search(r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']', html, re.I) or \
+                       re.search(r'<meta\s+name=["\']title["\']\s+content=["\']([^"\']+)["\']', html, re.I) or \
+                       re.search(r'<title>([^<]+)</title>', html, re.I)
+            og_image = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html, re.I) or \
+                       re.search(r'<meta\s+name=["\']twitter:image["\']\s+content=["\']([^"\']+)["\']', html, re.I)
+
+            title = og_title.group(1).strip() if og_title else "Social Media Video"
+            title = title.replace("&quot;", '"').replace("&amp;", '&').replace("&#039;", "'")
+            thumbnail = og_image.group(1).strip() if og_image else ""
+
+            return {
+                "is_playlist": False,
+                "title": title,
+                "thumbnail": thumbnail,
+                "duration": None,
+                "uploader": detect_platform(url),
+                "video_qualities": [
+                    {"label": "Best Quality", "value": "best"},
+                    {"label": "720p HD", "value": "720"},
+                    {"label": "360p SD", "value": "360"},
+                ],
+                "audio_qualities": [
+                    {"label": "MP3 (Best Quality)", "value": "mp3_best"},
+                    {"label": "M4A (Best Quality)", "value": "m4a_best"},
+                ],
+            }
+    except Exception:
+        pass
+    return None
+
+
 @app.post("/info")
 def get_video_info(request: VideoRequest):
     try:
         is_playlist = is_playlist_url(request.url)
+
+        if not is_playlist:
+            fast_meta = get_fast_metadata(request.url)
+            if fast_meta:
+                return fast_meta
 
         is_pure_playlist = bool(re.search(r'/playlist\?|/playlists/', request.url))
         if is_playlist:

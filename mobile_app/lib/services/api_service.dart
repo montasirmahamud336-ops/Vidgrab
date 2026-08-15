@@ -3,38 +3,55 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Default server URL - can be updated in App Settings
-  static String baseUrl = 'http://localhost:8000';
+  // Hardcoded private server URL
+  static const String baseUrl = 'http://192.64.118.232:8080';
 
   static Future<void> loadBaseUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUrl = prefs.getString('vps_url');
-    if (savedUrl != null && savedUrl.isNotEmpty) {
-      baseUrl = savedUrl.endsWith('/') ? savedUrl.substring(0, savedUrl.length - 1) : savedUrl;
-    }
+    // No-op for security: preserve private server URL
   }
 
-  static Future<void> saveBaseUrl(String newUrl) async {
-    baseUrl = newUrl.endsWith('/') ? newUrl.substring(0, newUrl.length - 1) : newUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('vps_url', baseUrl);
+  static String sanitizeErrorMessage(String error) {
+    // Hide IP addresses, internal domains, and stack traces from UI
+    String clean = error.replaceAll(RegExp(r'http://[0-9.]+(:\d+)?'), '')
+                         .replaceAll(RegExp(r'https?://[^\s]+'), '')
+                         .replaceAll(RegExp(r'192\.64\.118\.\d+'), '')
+                         .replaceAll('Exception: ', '')
+                         .trim();
+    if (clean.isEmpty || clean.contains('SocketException') || clean.contains('Connection refused') || clean.contains('ClientException')) {
+      return 'Server unavailable. Please check your internet connection and try again.';
+    }
+    if (clean.contains('TimeoutException') || clean.contains('Future not completed')) {
+      return 'Analysis timed out. Please tap Retry.';
+    }
+    if (clean.contains('yt-dlp') || clean.contains('ExtractorError') || clean.contains('HTTP Error 404')) {
+      return 'Could not extract video. Private or restricted links are not supported.';
+    }
+    return clean;
   }
 
   // Fetch video info (qualities, title, thumbnail, duration)
   static Future<Map<String, dynamic>> getVideoInfo(String videoUrl) async {
-    await loadBaseUrl();
-    final endpoint = Uri.parse('$baseUrl/info');
-    final response = await http.post(
-      endpoint,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'url': videoUrl, 'quality': 'best'}),
-    );
+    try {
+      final endpoint = Uri.parse('$baseUrl/info');
+      final response = await http.post(
+        endpoint,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'url': videoUrl, 'quality': 'best'}),
+      ).timeout(const Duration(seconds: 90));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(utf8.decode(response.bodyBytes));
-    } else {
-      final err = jsonDecode(response.body);
-      throw Exception(err['detail'] ?? 'Failed to analyze video URL');
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      } else {
+        try {
+          final err = jsonDecode(response.body);
+          final msg = err['detail']?.toString() ?? 'Failed to analyze video URL';
+          throw Exception(sanitizeErrorMessage(msg));
+        } catch (_) {
+          throw Exception('Unable to process this video link. Please verify the URL.');
+        }
+      }
+    } catch (e) {
+      throw Exception(sanitizeErrorMessage(e.toString()));
     }
   }
 
@@ -50,9 +67,8 @@ class ApiService {
 
   // Fetch public ads config
   static Future<Map<String, dynamic>> getAdsConfig() async {
-    await loadBaseUrl();
     try {
-      final response = await http.get(Uri.parse('$baseUrl/ads-config'));
+      final response = await http.get(Uri.parse('$baseUrl/ads-config')).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
