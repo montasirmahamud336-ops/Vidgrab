@@ -786,6 +786,19 @@ def download_video(request: VideoRequest, req: Request):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+def extract_clean_error(stderr: str) -> str:
+    if not stderr:
+        return "Unknown download error"
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    err_lines = [l for l in lines if "ERROR:" in l]
+    if err_lines:
+        return err_lines[0].replace("ERROR: ", "").strip()
+    non_warn = [l for l in lines if not l.startswith("WARNING:")]
+    if non_warn:
+        return non_warn[0].strip()
+    return lines[0][:200]
+
+
 @app.get("/download-file")
 def download_video_file(
     url: str = Query(..., description="Video URL to download"),
@@ -815,7 +828,6 @@ def download_video_file(
         "--no-playlist",
         "--no-progress",
         "--no-check-certificates",
-        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "--extractor-args", "youtube:player_client=android,ios,mweb",
         "-o", temp_template,
     ]
@@ -838,7 +850,7 @@ def download_video_file(
     try:
         res = sp.run(cmd, capture_output=True, text=True, timeout=180)
 
-        # Fallback if primary format failed
+        # Fallback 1: simplified player client
         if res.returncode != 0:
             fallback_cmd = [
                 sys.executable, "-m", "yt_dlp",
@@ -856,8 +868,24 @@ def download_video_file(
             fallback_cmd.append(clean_url)
             res = sp.run(fallback_cmd, capture_output=True, text=True, timeout=180)
 
+        # Fallback 2: default yt-dlp execution
         if res.returncode != 0:
-            raise RuntimeError(f"Download failed: {res.stderr[:200] if res.stderr else 'Unknown error'}")
+            final_fallback = [
+                sys.executable, "-m", "yt_dlp",
+                "--no-playlist",
+                "--no-progress",
+                "--no-check-certificates",
+                "-f", "b/best",
+                "-o", temp_template,
+            ]
+            if os.path.exists(cookies_path):
+                final_fallback.extend(["--cookies", cookies_path])
+            final_fallback.append(clean_url)
+            res = sp.run(final_fallback, capture_output=True, text=True, timeout=180)
+
+        if res.returncode != 0:
+            clean_err = extract_clean_error(res.stderr)
+            raise RuntimeError(f"Download failed: {clean_err}")
 
         # Find the created temp file
         matching_files = glob.glob(os.path.join(DOWNLOAD_DIR, f"vidgrab_{temp_id}.*"))
