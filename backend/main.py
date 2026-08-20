@@ -773,18 +773,47 @@ def get_video_info(request: VideoRequest):
         # Clean tracking query parameters (e.g., ?igsh=..., ?si=..., ?fbclid=...)
         clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', request.url).rstrip('?&')
 
+        # ── 1. ULTRA-FAST YOUTUBE OEMBED RESOLVER (0.5s response time) ──
+        if "youtu" in request.url or "youtube.com" in request.url:
+            try:
+                oembed_res = requests.get(f"https://www.youtube.com/oembed?url={quote(request.url)}&format=json", timeout=3)
+                if oembed_res.status_code == 200:
+                    oe = oembed_res.json()
+                    video_options = [
+                        {"label": "Best Quality", "value": "best"},
+                        {"label": "1080p Full HD", "value": "1080"},
+                        {"label": "720p HD", "value": "720"},
+                        {"label": "480p SD", "value": "480"},
+                        {"label": "360p SD", "value": "360"},
+                    ]
+                    audio_options = [
+                        {"label": "MP3 (Best Quality)", "value": "mp3_best"},
+                        {"label": "M4A (Best Quality)", "value": "m4a_best"},
+                    ]
+                    return {
+                        "is_playlist": False,
+                        "title": oe.get("title") or "YouTube Video",
+                        "thumbnail": oe.get("thumbnail_url"),
+                        "duration": None,
+                        "uploader": oe.get("author_name"),
+                        "video_qualities": video_options,
+                        "audio_qualities": audio_options,
+                    }
+            except Exception:
+                pass
+
         ydl_opts = {
             "quiet": True,
             "noplaylist": True,
             "ffmpeg_location": get_ffmpeg_binary_path(),
-            "extractor_retries": 3,
+            "extractor_retries": 1,
             "sleep_requests": 0,
             "extractor_args": {
                 "youtube": {
                     "player_client": ["ios", "android", "web"],
                 }
             },
-            "socket_timeout": 10,
+            "socket_timeout": 5,
         }
         cookies_path = os.path.join(BASE_DIR, "cookies.txt")
         if os.path.exists(cookies_path):
