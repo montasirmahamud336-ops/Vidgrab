@@ -918,7 +918,7 @@ def download_video_file(
 ):
     client_ip = get_client_ip(req) if req else "unknown"
     clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', url).rstrip('?&')
-    safe_title = sanitize_filename(title) if title else get_video_title(clean_url)
+    safe_title = sanitize_filename(title) if title else "Video"
 
     if quality == "mp3_best":
         ext = "mp3"
