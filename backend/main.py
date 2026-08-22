@@ -936,40 +936,40 @@ def download_video_file(
     try:
         cookies_path = get_valid_cookies_path()
 
-        # ── 1. FAST DIRECT CDN STREAMING (For genuine playable MP4 video URLs) ──
+        # ── 1. FAST DIRECT CDN STREAMING (First Priority: NO COOKIES for 0.8s instant response) ──
         if quality not in ("mp3_best", "m4a_best"):
-            fast_opts = [
-                sys.executable, "-m", "yt_dlp",
-                "--no-playlist", "--no-progress", "--no-check-certificates", "-g",
-                "-f", "b[ext=mp4]/best[ext=mp4]/18/22/b"
+            fast_attempts = [
+                # Attempt A: NO COOKIES (Instant 0.8s response time!)
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-g", "-f", "b[ext=mp4]/best[ext=mp4]/18/22/b", clean_url],
+                # Attempt B: WITH COOKIES (For private/age-gated videos)
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-g", "-f", "b[ext=mp4]/best[ext=mp4]/18/22/b", "--cookies", cookies_path, clean_url] if cookies_path else None,
             ]
-            if cookies_path:
-                fast_opts.extend(["--cookies", cookies_path])
-            fast_opts.append(clean_url)
+            for f_cmd in fast_attempts:
+                if not f_cmd:
+                    continue
+                try:
+                    fast_res = sp.run(f_cmd, capture_output=True, text=True, timeout=6)
+                    if fast_res.returncode == 0 and fast_res.stdout.strip():
+                        stream_url = fast_res.stdout.strip().splitlines()[0]
 
-            try:
-                fast_res = sp.run(fast_opts, capture_output=True, text=True, timeout=15)
-                if fast_res.returncode == 0 and fast_res.stdout.strip():
-                    stream_url = fast_res.stdout.strip().splitlines()[0]
-                    
-                    # Ensure stream_url is a real video file and not an .m3u8 playlist text file
-                    if ".m3u8" not in stream_url and "manifest" not in stream_url:
-                        log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
+                        # Ensure stream_url is a real video file and not an .m3u8 playlist text file
+                        if ".m3u8" not in stream_url and "manifest" not in stream_url:
+                            log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
 
-                        remote_req = requests.get(stream_url, stream=True, timeout=30, headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-                        })
-                        if remote_req.status_code == 200:
-                            encoded_fn = quote(final_filename, safe='')
-                            headers = {
-                                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
-                                "Content-Type": "video/mp4",
-                            }
-                            if "Content-Length" in remote_req.headers:
-                                headers["Content-Length"] = remote_req.headers["Content-Length"]
-                            return StreamingResponse(remote_req.iter_content(chunk_size=1024 * 512), headers=headers)
-            except Exception:
-                pass
+                            remote_req = requests.get(stream_url, stream=True, timeout=30, headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                            })
+                            if remote_req.status_code == 200:
+                                encoded_fn = quote(final_filename, safe='')
+                                headers = {
+                                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
+                                    "Content-Type": "video/mp4",
+                                }
+                                if "Content-Length" in remote_req.headers:
+                                    headers["Content-Length"] = remote_req.headers["Content-Length"]
+                                return StreamingResponse(remote_req.iter_content(chunk_size=1024 * 512), headers=headers)
+                except Exception:
+                    pass
 
         # ── 2. DISK DOWNLOAD FALLBACK (For audio conversion or complex formats) ──
         attempts = [
