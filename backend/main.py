@@ -936,13 +936,15 @@ def download_video_file(
     try:
         cookies_path = get_valid_cookies_path()
 
-        # ── 1. FAST DIRECT CDN STREAMING (Instant < 2s Response for ALL YouTube/FB/IG Videos) ──
+        # ── 1. FAST DIRECT CDN STREAMING (Instant < 2s Response with iOS/Android Player Clients) ──
         if quality not in ("mp3_best", "m4a_best"):
             fast_attempts = [
-                # Attempt A: NO COOKIES + Universal Format Selector (b/best/18/22)
+                # Attempt A: NO COOKIES + iOS/Android/Android_VR Player Client (Bypasses YouTube Bot Check & "Page needs to be reloaded" error)
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--extractor-args", "youtube:player_client=ios,android,android_vr", "-g", "-f", "b/best/18/22", clean_url],
+                # Attempt B: NO COOKIES + default
                 [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-g", "-f", "b/best/18/22", clean_url],
-                # Attempt B: WITH COOKIES (If private/age-gated)
-                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-g", "-f", "b/best/18/22", "--cookies", cookies_path, clean_url] if cookies_path else None,
+                # Attempt C: WITH COOKIES (For private/age-gated videos)
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--extractor-args", "youtube:player_client=ios,android,android_vr", "-g", "-f", "b/best/18/22", "--cookies", cookies_path, clean_url] if cookies_path else None,
             ]
             for f_cmd in fast_attempts:
                 if not f_cmd:
