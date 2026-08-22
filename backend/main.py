@@ -950,7 +950,7 @@ def download_video_file(
                 if not f_cmd:
                     continue
                 try:
-                    fast_res = sp.run(f_cmd, capture_output=True, text=True, timeout=8)
+                    fast_res = sp.run(f_cmd, capture_output=True, text=True, timeout=20)
                     if fast_res.returncode == 0 and fast_res.stdout.strip():
                         stream_url = fast_res.stdout.strip().splitlines()[0]
 
@@ -974,11 +974,11 @@ def download_video_file(
         # ── 2. DISK DOWNLOAD FALLBACK (For audio conversion or complex formats) ──
         attempts = [
             # Attempt 1: NO COOKIES + ios, android, mweb, web_embedded
-            {"cookies": None, "player_client": "ios,android,mweb,web_embedded"},
+            {"cookies": None, "player_client": "android,android_vr"},
             # Attempt 2: NO COOKIES + default
             {"cookies": None, "player_client": None},
             # Attempt 3: WITH COOKIES + player clients
-            {"cookies": cookies_path, "player_client": "ios,android,mweb,web_embedded"} if cookies_path else None,
+            {"cookies": cookies_path, "player_client": "android,android_vr"} if cookies_path else None,
             # Attempt 4: WITH COOKIES + default
             {"cookies": cookies_path, "player_client": None} if cookies_path else None,
         ]
