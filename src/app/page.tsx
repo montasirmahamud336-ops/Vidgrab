@@ -103,7 +103,7 @@ interface DownloadStats {
   dailyStats: DailyStat[];
 }
 
-type Page = "dashboard" | "top-banner" | "bottom-banner" | "redirect-ads" | "side-banners" | "settings" | "cookies";
+type Page = "dashboard" | "users" | "top-banner" | "bottom-banner" | "redirect-ads" | "side-banners" | "settings" | "cookies";
 
 // ─── Platform icon helper ────────────────────────────────
 function PlatformIcon({ platform }: { platform: string }) {
@@ -448,6 +448,7 @@ export default function AdminPanel() {
   // ─── Navigation Items ─────────────────────────────────
   const navItems: { id: Page; label: string; icon: React.ReactNode; group?: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: "users", label: "User Downloads", icon: <Users className="h-4 w-4" />, group: "User Activity" },
     { id: "top-banner", label: "Top Banner", icon: <Megaphone className="h-4 w-4" />, group: "Ad Management" },
     { id: "bottom-banner", label: "Bottom Banner", icon: <Megaphone className="h-4 w-4" /> },
     { id: "redirect-ads", label: "Redirect Ads", icon: <ArrowLeftRight className="h-4 w-4" /> },
@@ -463,6 +464,11 @@ export default function AdminPanel() {
     switch (currentPage) {
       case "dashboard":
         return <DashboardPage stats={stats} backendConnected={backendConnected} onRefresh={fetchStats} />;
+      case "users":
+        return <UsersDownloadsPage
+          authHeaders={authHeaders}
+          onError={(msg: string) => toast({ title: "Error", description: msg, variant: "destructive" })}
+        />;
       case "top-banner":
         return <BannerPage
           title="Top Banner Ad"
@@ -1535,6 +1541,232 @@ function CookiesPage({ authHeaders, onError }: {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+// ─── User Downloads Activity Page ───────────────────────────
+function UsersDownloadsPage({ authHeaders, onError }: {
+  authHeaders: () => Record<string, string>;
+  onError: (msg: string) => void;
+}) {
+  const [downloads, setDownloads] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [platformFilter, setPlatformFilter] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const fetchDownloads = useCallback(async (p: number, plat?: string) => {
+    setLoading(true);
+    try {
+      const selectedPlat = plat || platformFilter;
+      let url = `/api/admin/downloads?page=${p}&limit=25`;
+      if (selectedPlat && selectedPlat !== "All") {
+        url += `&platform=${encodeURIComponent(selectedPlat)}`;
+      }
+      const res = await fetch(url, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setDownloads(data.downloads || []);
+        setTotal(data.total || 0);
+        setPage(data.page || 1);
+        setTotalPages(data.totalPages || 1);
+      }
+    } catch { onError("Failed to load user downloads history"); }
+    finally { setLoading(false); }
+  }, [authHeaders, onError, platformFilter]);
+
+  useEffect(() => {
+    fetchDownloads(1, platformFilter);
+  }, [platformFilter]);
+
+  const clearHistory = async () => {
+    if (!confirm("Are you sure you want to clear all user download logs?")) return;
+    try {
+      const res = await fetch(`/api/admin/downloads`, { method: "DELETE", headers: authHeaders() });
+      if (res.ok) { fetchDownloads(1); }
+    } catch { onError("Failed to clear downloads history"); }
+  };
+
+  const filteredDownloads = downloads.filter((d) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (d.title && d.title.toLowerCase().includes(q)) ||
+      (d.client_ip && d.client_ip.toLowerCase().includes(q)) ||
+      (d.platform && d.platform.toLowerCase().includes(q)) ||
+      (d.url && d.url.toLowerCase().includes(q))
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1.5">
+            <div className="w-10 h-10 rounded-xl bg-sky-400/10 flex items-center justify-center text-sky-400">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">User Downloads Activity</h2>
+              <p className="text-sm text-muted-foreground">Real-time log of who downloaded which video, resolution & time</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchDownloads(page)}
+            className="rounded-xl gap-2 text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={clearHistory}
+            disabled={total === 0}
+            className="rounded-xl gap-2 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+          >
+            <X className="h-3.5 w-3.5" /> Clear History
+          </Button>
+        </div>
+      </div>
+
+      {/* Controls Bar: Search & Platform Filters */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-card/70 border border-border/50 backdrop-blur-sm">
+        <div className="flex items-center gap-2 w-full md:w-80">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by title, IP or URL..."
+            className="bg-background/60 border-border/50 h-9 text-xs rounded-xl"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+          {["All", "YouTube", "Instagram", "TikTok", "Facebook"].map((plat) => (
+            <button
+              key={plat}
+              onClick={() => { setPlatformFilter(plat); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                platformFilter === plat
+                  ? "bg-sky-400 text-black shadow-md shadow-sky-400/20"
+                  : "bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]"
+              }`}
+            >
+              {plat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Downloads List */}
+      <Card className="border-border/50 bg-card/80 backdrop-blur-sm rounded-2xl overflow-hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-8 space-y-3">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+          ) : filteredDownloads.length === 0 ? (
+            <div className="text-center py-16 px-4">
+              <Download className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">No user downloads found</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Downloads triggered by users will appear here automatically</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/40">
+              {filteredDownloads.map((item, idx) => (
+                <motion.div
+                  key={item.id || idx}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 hover:bg-white/[0.02] transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <PlatformIcon platform={item.platform || "Other"} />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-sky-400">
+                          #{item.id}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-white/[0.06] text-[11px] font-mono text-muted-foreground font-semibold">
+                          IP: {item.client_ip || "127.0.0.1"}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] font-medium border-border/60">
+                          {item.platform || "Video"}
+                        </Badge>
+                        <Badge className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {item.quality || "Best Quality"}
+                        </Badge>
+                      </div>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-semibold text-foreground hover:text-sky-400 transition-colors line-clamp-1 block"
+                        title={item.title}
+                      >
+                        {item.title || "Untitled Video"}
+                      </a>
+                      <p className="text-[11px] text-muted-foreground/60 truncate font-mono">
+                        {item.url}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-4 flex-shrink-0 pl-13 md:pl-0">
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-foreground">
+                        {item.file_size_formatted || (item.file_size ? `${(item.file_size / (1024*1024)).toFixed(1)} MB` : "Stream")}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1 justify-end mt-0.5">
+                        <Clock className="h-3 w-3" />
+                        {item.time_ago || (item.timestamp ? formatTimeAgo(item.timestamp) : "Recently")}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between p-2">
+          <p className="text-xs text-muted-foreground">
+            Page <span className="font-bold text-foreground">{page}</span> of {totalPages} ({total} total downloads)
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || loading}
+              onClick={() => fetchDownloads(page - 1)}
+              className="rounded-xl text-xs"
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || loading}
+              onClick={() => fetchDownloads(page + 1)}
+              className="rounded-xl text-xs"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
