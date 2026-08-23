@@ -971,14 +971,14 @@ def download_video_file(
                 except Exception:
                     pass
 
-        # ── 2. DISK DOWNLOAD FALLBACK (For audio conversion or complex formats) ──
+        # ── 2. DISK DOWNLOAD FALLBACK (Node.js JS Runtime + Android/MWeb Players) ──
         attempts = [
-            # Attempt 1: NO COOKIES + ios, android, mweb, web_embedded
-            {"cookies": None, "player_client": "android,android_vr"},
+            # Attempt 1: NO COOKIES + android,mweb (Bypasses bot checks & SABR)
+            {"cookies": None, "player_client": "android,mweb"},
             # Attempt 2: NO COOKIES + default
             {"cookies": None, "player_client": None},
-            # Attempt 3: WITH COOKIES + player clients
-            {"cookies": cookies_path, "player_client": "android,android_vr"} if cookies_path else None,
+            # Attempt 3: WITH COOKIES + android,mweb
+            {"cookies": cookies_path, "player_client": "android,mweb"} if cookies_path else None,
             # Attempt 4: WITH COOKIES + default
             {"cookies": cookies_path, "player_client": None} if cookies_path else None,
         ]
@@ -992,6 +992,8 @@ def download_video_file(
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
+                "--js-runtimes", "node",
+                "--remote-components", "ejs:github",
                 "-o", temp_template,
             ]
             if att["player_client"]:
