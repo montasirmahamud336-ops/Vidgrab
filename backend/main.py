@@ -667,9 +667,42 @@ def get_fast_metadata(url: str) -> Optional[dict]:
                        re.search(r'<title>([^<]+)</title>', html, re.I)
             og_image = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html, re.I) or \
                        re.search(r'<meta\s+name=["\']twitter:image["\']\s+content=["\']([^"\']+)["\']', html, re.I)
+            raw_title = og_title.group(1).strip() if og_title else ""
+            og_desc = re.search(r'<meta\s+property=["\']og:description["\']\s+content=["\']([^"\']+)["\']', html, re.I) or \
+                      re.search(r'<meta\s+name=["\']description["\']\s+content=["\']([^"\']+)["\']', html, re.I)
+            raw_desc = og_desc.group(1).strip() if og_desc else ""
+            raw_title = raw_title.replace("&quot;", '"').replace("&amp;", '&').replace("&#039;", "'")
+            raw_desc = raw_desc.replace("&quot;", '"').replace("&amp;", '&').replace("&#039;", "'")
 
-            title = og_title.group(1).strip() if og_title else "Social Media Video"
-            title = title.replace("&quot;", '"').replace("&amp;", '&').replace("&#039;", "'")
+            # Instagram Smart Reel Title Resolution
+            if "instagram.com" in url_lower:
+                code_match = re.search(r'/(?:reel|reels|p)/([A-Za-z0-9_-]+)', url)
+                code = code_match.group(1) if code_match else ""
+
+                caption_quote = re.search(r'[:：]\s*["“]([^"”]+)["”]', raw_desc)
+                author_match = re.search(r'-\s*([^\s:]+)\s+on\s+Instagram', raw_desc, re.I) or \
+                               re.search(r'([A-Za-z0-9_.-]+)\s+on\s+Instagram', raw_desc, re.I) or \
+                               re.search(r'by\s+([A-Za-z0-9_.-]+)', raw_desc, re.I)
+
+                clean_author = author_match.group(1).strip('@ ') if author_match else ""
+                clean_caption = caption_quote.group(1).strip() if caption_quote else ""
+
+                if clean_caption:
+                    if len(clean_caption) > 50:
+                        clean_caption = clean_caption[:50].strip()
+                    title = f"{clean_author} - {clean_caption}" if clean_author else clean_caption
+                elif clean_author:
+                    title = f"Instagram_Reel_{clean_author}_{code}" if code else f"Instagram_Reel_{clean_author}"
+                elif code:
+                    title = f"Instagram_Reel_{code}"
+                else:
+                    title = "Instagram_Reel"
+            elif "tiktok.com" in url_lower:
+                title = raw_title.replace("on TikTok", "").strip() if "on TikTok" in raw_title else (raw_title or raw_desc[:50].strip() or "TikTok_Video")
+            elif "facebook.com" in url_lower or "fb.watch" in url_lower:
+                title = raw_title or raw_desc[:50].strip() or "Facebook_Video"
+            else:
+                title = raw_title or raw_desc[:50].strip() or "Video"
             thumbnail = og_image.group(1).strip() if og_image else ""
 
             return {
@@ -918,7 +951,16 @@ def download_video_file(
 ):
     client_ip = get_client_ip(req) if req else "unknown"
     clean_url = re.sub(r'(\?|&)(igsh|si|fbclid|utm_[^=]+)=[^&]+', '', url).rstrip('?&')
-    safe_title = sanitize_filename(title) if title else "Video"
+    norm_title = str(title or "").strip().lower()
+    if not norm_title or norm_title in ("video", "instagram reel", "instagram video", "social media video", "unknown"):
+        if "instagram.com" in url.lower():
+            code_match = re.search(r'/(?:reel|reels|p)/([A-Za-z0-9_-]+)', url)
+            code = code_match.group(1) if code_match else secrets.token_hex(4)
+            safe_title = f"Instagram_Reel_{code}"
+        else:
+            safe_title = get_video_title(url)
+    else:
+        safe_title = sanitize_filename(title)
 
     if quality == "mp3_best":
         ext = "mp3"
