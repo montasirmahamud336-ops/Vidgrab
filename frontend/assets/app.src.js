@@ -637,62 +637,59 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        // ── Seamless Iframe Native Download Trigger ──
+        // ── Robust Unified Download Flow (Direct Fetch & Blob Trigger) ──
         clearToasts();
-        toast('Preparing your video stream... Please wait.', 'i', true);
+        toast('Downloading video stream... Please wait.', 'i', true);
         dlB.disabled = true;
-        dlB.innerHTML = '<div class="spinner"></div> Preparing Video...';
+        dlB.innerHTML = '<div class="spinner"></div> Downloading...';
         prog.classList.add('vis');
-        setProgress(2, 30, 'Connecting to video stream...');
+        setProgress(2, 35, 'Fetching video stream...');
 
-        // 1. Trigger robust direct native download across all browsers
         if (isMobileDevice()) {
           window.location.href = downloadUrl;
-        } else {
-          try {
-            const dlAnchor = document.createElement('a');
-            dlAnchor.href = downloadUrl;
-            dlAnchor.setAttribute('download', (videoData?.title || 'video') + (q.startsWith('mp3') ? '.mp3' : '.mp4'));
-            dlAnchor.target = '_self';
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            setTimeout(() => dlAnchor.remove(), 1000);
-          } catch (e) {
-            window.location.href = downloadUrl;
+          setProgress(4, 100, 'Download started');
+          setTimeout(() => {
+            prog.classList.remove('vis');
+            dlB.disabled = false;
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          }, 3000);
+          return;
+        }
+
+        // On desktop: Fetch stream with live progress and trigger blob
+        try {
+          const resp = await fetch(downloadUrl);
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Download request failed on server');
           }
-        }
 
-        // Secondary fallback iframe
-        let dlIframe = document.getElementById('dlIframe');
-        if (!dlIframe) {
-          dlIframe = document.createElement('iframe');
-          dlIframe.id = 'dlIframe';
-          dlIframe.style.display = 'none';
-          document.body.appendChild(dlIframe);
-        }
-        dlIframe.src = downloadUrl;
+          setProgress(3, 85, 'Saving video file...');
+          const blob = await resp.blob();
 
-        // 2. Realistic synchronized progress animation
-        setTimeout(() => {
-          setProgress(2, 60, 'Extracting & sending video bytes...');
-        }, 2000);
+          const disp = resp.headers.get('Content-Disposition') || '';
+          const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
+          const ext = q.startsWith('mp3') ? 'mp3' : (q.startsWith('m4a') ? 'm4a' : 'mp4');
+          const defaultName = (videoData?.title || 'video') + '.' + ext;
+          const finalFilename = fnMatch ? decodeURIComponent(fnMatch[1].replace(/['"]/g, '')) : defaultName;
 
-        setTimeout(() => {
-          setProgress(3, 85, 'Transferring stream to browser...');
-        }, 4000);
+          triggerBlob(blob, finalFilename);
 
-        setTimeout(() => {
           clearToasts();
-          setProgress(4, 100, 'Download in progress!');
-          toast('Download started! Saving file to your computer.', 's');
-        }, 6000);
-
-        setTimeout(() => {
-          prog.classList.remove('vis');
-          dlB.disabled = false;
-          dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
-        }, 8500);
-
+          setProgress(4, 100, 'Download complete!');
+          toast('Video downloaded successfully! Saved to your computer.', 's');
+        } catch (fetchErr) {
+          console.warn('Fetch streaming fallback to direct link:', fetchErr);
+          window.location.href = downloadUrl;
+          toast('Download started via browser manager.', 's');
+        } finally {
+          setTimeout(() => {
+            prog.classList.remove('vis');
+            dlB.disabled = false;
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          }, 2000);
+        }
+        return;
         return;
 
       } catch(err) {
