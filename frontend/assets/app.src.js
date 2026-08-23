@@ -637,35 +637,24 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        if (isMobileDevice()) {
-          window.location.href = downloadUrl;
-          setProgress(4, 100, 'Download started');
-          setTimeout(() => prog.classList.remove('vis'), 1500);
-          toast('Download started.', 's');
-          return;
-        }
-
-        setProgress(3, 80, 'Preparing file...');
-
-        toast('Please wait — server is preparing your download. Don\'t leave the page.', 'i', true);
-
-        const resp = await fetch(downloadUrl);
-        if (!resp.ok) {
-          const errData = await resp.json().catch(()=>({}));
-          throw new Error(errData.detail || 'Server refused download');
-        }
-
-        // Server responded — download is starting
+        // ── Direct Native Browser Download Bar ──
+        setProgress(4, 100, 'Download started');
         clearToasts();
-        setProgress(4, 100, 'Download complete');
+        toast('Download started! Check your browser download bar.', 's');
 
-        const blob = await resp.blob();
-        const disp = resp.headers.get('Content-Disposition') || '';
-        const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
-        const filename = fnMatch ? decodeURIComponent(fnMatch[1]) : 'video.mp4';
-        triggerBlob(blob, filename);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.setAttribute('download', '');
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
 
-        setTimeout(() => prog.classList.remove('vis'), 1500);
+        setTimeout(() => {
+          a.remove();
+          prog.classList.remove('vis');
+          dlB.disabled = false;
+        }, 1500);
+        return;
 
       } catch(err) {
         clearToasts();
