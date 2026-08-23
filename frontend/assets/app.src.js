@@ -637,23 +637,49 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        // ── Direct Native Browser Download Bar ──
-        setProgress(4, 100, 'Download started');
+        // ── Smooth Countdown & Preparing Progress UI ──
         clearToasts();
-        toast('Download started! Check your browser download bar.', 's');
+        toast('Your video is preparing. Please wait until video starts downloading...', 'i', true);
+        dlB.innerHTML = '<div class="spinner"></div> Preparing Video...';
 
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.setAttribute('download', '');
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
+        let secondsLeft = 6;
+        const totalSecs = 6;
+        
+        setProgress(2, 25, `Preparing video... starting in ${secondsLeft}s`);
+
+        const countdownInterval = setInterval(() => {
+          secondsLeft--;
+          const pct = Math.min(95, Math.round(((totalSecs - secondsLeft) / totalSecs) * 90) + 10);
+          if (secondsLeft > 0) {
+            setProgress(3, pct, `Preparing video... starting in ${secondsLeft}s`);
+          } else {
+            clearInterval(countdownInterval);
+            setProgress(4, 100, 'Starting download...');
+          }
+        }, 1000);
 
         setTimeout(() => {
-          a.remove();
-          prog.classList.remove('vis');
-          dlB.disabled = false;
-        }, 1500);
+          clearInterval(countdownInterval);
+          clearToasts();
+          setProgress(4, 100, 'Download started!');
+          toast('Download started! Your file is saving now.', 's');
+
+          // Trigger native Chrome/Browser download
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.setAttribute('download', '');
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+
+          setTimeout(() => {
+            a.remove();
+            prog.classList.remove('vis');
+            dlB.disabled = false;
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          }, 3500);
+        }, 6000);
+
         return;
 
       } catch(err) {
