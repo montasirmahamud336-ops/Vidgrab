@@ -637,43 +637,44 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        // ── Immediate Download Trigger with Live Progress Sync ──
+        // ── Seamless Iframe Native Download Trigger ──
         clearToasts();
-        toast('Your video is preparing... Please wait until download starts.', 'i', true);
+        toast('Preparing your video stream... Please wait.', 'i', true);
+        dlB.disabled = true;
         dlB.innerHTML = '<div class="spinner"></div> Preparing Video...';
+        prog.classList.add('vis');
+        setProgress(2, 30, 'Connecting to video stream...');
 
-        // 1. Immediately start downloading without delaying
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.setAttribute('download', '');
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
+        // 1. Trigger native download via hidden iframe
+        let dlIframe = document.getElementById('dlIframe');
+        if (!dlIframe) {
+          dlIframe = document.createElement('iframe');
+          dlIframe.id = 'dlIframe';
+          dlIframe.style.display = 'none';
+          document.body.appendChild(dlIframe);
+        }
+        dlIframe.src = downloadUrl;
 
-        // 2. Synchronized live progress animation
-        let step = 1;
-        setProgress(2, 25, 'Connecting to stream...');
-        
-        const progTimer = setInterval(() => {
-          step++;
-          if (step === 2) {
-            setProgress(2, 50, 'Extracting video stream...');
-          } else if (step === 3) {
-            setProgress(3, 75, 'Preparing download file...');
-          } else if (step >= 4) {
-            clearInterval(progTimer);
-            setProgress(4, 100, 'Download started!');
-            clearToasts();
-            toast('Download started! Your file is saving now.', 's');
+        // 2. Realistic synchronized progress animation
+        setTimeout(() => {
+          setProgress(2, 60, 'Extracting & sending video bytes...');
+        }, 2000);
 
-            setTimeout(() => {
-              a.remove();
-              prog.classList.remove('vis');
-              dlB.disabled = false;
-              dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
-            }, 3000);
-          }
-        }, 1200);
+        setTimeout(() => {
+          setProgress(3, 85, 'Transferring stream to browser...');
+        }, 4000);
+
+        setTimeout(() => {
+          clearToasts();
+          setProgress(4, 100, 'Download in progress!');
+          toast('Download started! Saving file to your computer.', 's');
+        }, 6000);
+
+        setTimeout(() => {
+          prog.classList.remove('vis');
+          dlB.disabled = false;
+          dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+        }, 8500);
 
         return;
 
