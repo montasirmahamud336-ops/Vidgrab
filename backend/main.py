@@ -936,40 +936,51 @@ def download_video_file(
     try:
         cookies_path = get_valid_cookies_path()
 
-        # ── 1. FAST DIRECT CDN STREAMING (Node.js JS Runtime + Android Player Clients) ──
-        if quality not in ("mp3_best", "m4a_best"):
-            fast_attempts = [
-                # Attempt A: NO COOKIES + Node JS Runtime + Android Player Client
-                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android_vr,android", "-g", "-f", "b/best/18/22", clean_url],
-                # Attempt B: NO COOKIES + Node JS Runtime + Universal
-                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "-g", "-f", "b/best/18/22", clean_url],
-                # Attempt C: WITH COOKIES
-                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android_vr,android", "-g", "-f", "b/best/18/22", "--cookies", cookies_path, clean_url] if cookies_path else None,
-            ]
-            for f_cmd in fast_attempts:
-                if not f_cmd:
-                    continue
-                try:
-                    fast_res = sp.run(f_cmd, capture_output=True, text=True, timeout=20)
-                    if fast_res.returncode == 0 and fast_res.stdout.strip():
-                        stream_url = fast_res.stdout.strip().splitlines()[0]
+        # ── 1. ZERO-DISK DIRECT LIVE STREAMING (Instant < 3s Response, 0 Bytes Saved to Server Disk) ──
+        stream_attempts = [
+            # Attempt A: NO COOKIES + Node.js JS Runtime + Android/MWeb (0 Disk Writes, Streams directly to user)
+            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android,mweb", "-f", "b/best/18/22", "-o", "-", clean_url],
+            # Attempt B: NO COOKIES + Node.js JS Runtime + Universal
+            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "-f", "b/best/18/22", "-o", "-", clean_url],
+            # Attempt C: WITH COOKIES
+            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android,mweb", "-f", "b/best/18/22", "--cookies", cookies_path, "-o", "-", clean_url] if cookies_path else None,
+        ] if quality not in ("mp3_best", "m4a_best") else []
 
-                        log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
-
-                        remote_req = requests.get(stream_url, stream=True, timeout=30, headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-                        })
-                        if remote_req.status_code == 200:
-                            encoded_fn = quote(final_filename, safe='')
-                            headers = {
-                                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
-                                "Content-Type": remote_req.headers.get("Content-Type", "video/mp4"),
-                            }
-                            if "Content-Length" in remote_req.headers:
-                                headers["Content-Length"] = remote_req.headers["Content-Length"]
-                            return StreamingResponse(remote_req.iter_content(chunk_size=1024 * 512), headers=headers)
-                except Exception:
-                    pass
+        for s_cmd in stream_attempts:
+            if not s_cmd:
+                continue
+            try:
+                proc = sp.Popen(s_cmd, stdout=sp.PIPE, stderr=sp.PIPE, bufsize=65536)
+                first_chunk = proc.stdout.read(65536)
+                if first_chunk and len(first_chunk) > 0:
+                    log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
+                    encoded_fn = quote(final_filename, safe='')
+                    headers = {
+                        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
+                        "Content-Type": "video/mp4",
+                    }
+                    def iter_direct_stream():
+                        try:
+                            yield first_chunk
+                            while True:
+                                chunk = proc.stdout.read(65536)
+                                if not chunk:
+                                    break
+                                yield chunk
+                        finally:
+                            try:
+                                if proc.poll() is None:
+                                    proc.kill()
+                            except Exception:
+                                pass
+                    return StreamingResponse(iter_direct_stream(), media_type="video/mp4", headers=headers)
+                else:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         # ── 2. DISK DOWNLOAD FALLBACK (Node.js JS Runtime + Android/MWeb Players) ──
         attempts = [
