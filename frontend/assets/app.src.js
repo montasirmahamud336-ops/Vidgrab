@@ -645,7 +645,24 @@
         prog.classList.add('vis');
         setProgress(2, 30, 'Connecting to video stream...');
 
-        // 1. Trigger native download via hidden iframe
+        // 1. Trigger robust direct native download across all browsers
+        if (isMobileDevice()) {
+          window.location.href = downloadUrl;
+        } else {
+          try {
+            const dlAnchor = document.createElement('a');
+            dlAnchor.href = downloadUrl;
+            dlAnchor.setAttribute('download', (videoData?.title || 'video') + (q.startsWith('mp3') ? '.mp3' : '.mp4'));
+            dlAnchor.target = '_self';
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            setTimeout(() => dlAnchor.remove(), 1000);
+          } catch (e) {
+            window.location.href = downloadUrl;
+          }
+        }
+
+        // Secondary fallback iframe
         let dlIframe = document.getElementById('dlIframe');
         if (!dlIframe) {
           dlIframe = document.createElement('iframe');
