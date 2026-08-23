@@ -637,48 +637,43 @@
         if (videoData?.title) params.set('title', videoData.title);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
-        // ── Smooth Countdown & Preparing Progress UI ──
+        // ── Immediate Download Trigger with Live Progress Sync ──
         clearToasts();
-        toast('Your video is preparing. Please wait until video starts downloading...', 'i', true);
+        toast('Your video is preparing... Please wait until download starts.', 'i', true);
         dlB.innerHTML = '<div class="spinner"></div> Preparing Video...';
 
-        let secondsLeft = 6;
-        const totalSecs = 6;
+        // 1. Immediately start downloading without delaying
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.setAttribute('download', '');
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+
+        // 2. Synchronized live progress animation
+        let step = 1;
+        setProgress(2, 25, 'Connecting to stream...');
         
-        setProgress(2, 25, `Preparing video... starting in ${secondsLeft}s`);
+        const progTimer = setInterval(() => {
+          step++;
+          if (step === 2) {
+            setProgress(2, 50, 'Extracting video stream...');
+          } else if (step === 3) {
+            setProgress(3, 75, 'Preparing download file...');
+          } else if (step >= 4) {
+            clearInterval(progTimer);
+            setProgress(4, 100, 'Download started!');
+            clearToasts();
+            toast('Download started! Your file is saving now.', 's');
 
-        const countdownInterval = setInterval(() => {
-          secondsLeft--;
-          const pct = Math.min(95, Math.round(((totalSecs - secondsLeft) / totalSecs) * 90) + 10);
-          if (secondsLeft > 0) {
-            setProgress(3, pct, `Preparing video... starting in ${secondsLeft}s`);
-          } else {
-            clearInterval(countdownInterval);
-            setProgress(4, 100, 'Starting download...');
+            setTimeout(() => {
+              a.remove();
+              prog.classList.remove('vis');
+              dlB.disabled = false;
+              dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+            }, 3000);
           }
-        }, 1000);
-
-        setTimeout(() => {
-          clearInterval(countdownInterval);
-          clearToasts();
-          setProgress(4, 100, 'Download started!');
-          toast('Download started! Your file is saving now.', 's');
-
-          // Trigger native Chrome/Browser download
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.setAttribute('download', '');
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-
-          setTimeout(() => {
-            a.remove();
-            prog.classList.remove('vis');
-            dlB.disabled = false;
-            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
-          }, 3500);
-        }, 6000);
+        }, 1200);
 
         return;
 
