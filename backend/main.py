@@ -992,14 +992,17 @@ def download_video_file(
             if not s_cmd:
                 continue
             try:
-                proc = sp.Popen(s_cmd, stdout=sp.PIPE, stderr=sp.PIPE, bufsize=65536)
+                proc = sp.Popen(s_cmd, stdout=sp.PIPE, stderr=sp.DEVNULL, bufsize=65536)
                 first_chunk = proc.stdout.read(65536)
                 if first_chunk and len(first_chunk) > 0:
                     log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
+                    clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip()
                     encoded_fn = quote(final_filename, safe='')
                     headers = {
-                        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}",
-                        "Content-Type": "video/mp4",
+                        "Content-Disposition": f'attachment; filename="{clean_ascii_fn}"; filename*=UTF-8\'\'{encoded_fn}',
+                        "Content-Type": "video/mp4" if ext == "mp4" else "application/octet-stream",
+                        "X-Accel-Buffering": "no",
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
                     }
                     def iter_direct_stream():
                         try:
@@ -1094,11 +1097,16 @@ def download_video_file(
         media_type = mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
         encoded_fn = quote(final_filename, safe='')
 
+        clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip()
         return FileResponse(
             path=downloaded_filepath,
             media_type=media_type,
             filename=final_filename,
-            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_fn}"},
+            headers={
+                "Content-Disposition": f'attachment; filename="{clean_ascii_fn}"; filename*=UTF-8\'\'{encoded_fn}',
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
             background=BackgroundTask(cleanup_temp)
         )
     except Exception as exc:
