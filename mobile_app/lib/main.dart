@@ -59,15 +59,32 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     _initShareIntent();
   }
 
+  StreamSubscription? _textIntentSubscription;
+  StreamSubscription? _mediaIntentSubscription;
+
   void _initShareIntent() {
-    // Listen for shared text/links when app is in memory
-    _intentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
+    // 1. Listen for shared TEXT/URL links when app is in memory (Instagram, YouTube, FB, TikTok)
+    _textIntentSubscription = ReceiveSharingIntent.getTextStream().listen((String text) {
+      if (text.isNotEmpty) {
+        _processSharedText(text);
+      }
+    }, onError: (err) {});
+
+    // 2. Listen for shared TEXT/URL links when app is opened from closed state
+    ReceiveSharingIntent.getInitialText().then((String? text) {
+      if (text != null && text.isNotEmpty) {
+        _processSharedText(text);
+      }
+    });
+
+    // 3. Listen for shared media/files when app is in memory
+    _mediaIntentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
         _processSharedText(value.first.path);
       }
     }, onError: (err) {});
 
-    // Listen for shared text/links when app is opened from closed state
+    // 4. Listen for shared media/files when app is opened from closed state
     ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
         _processSharedText(value.first.path);
@@ -121,7 +138,8 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
   @override
   void dispose() {
-    _intentSubscription?.cancel();
+    _textIntentSubscription?.cancel();
+    _mediaIntentSubscription?.cancel();
     super.dispose();
   }
 
