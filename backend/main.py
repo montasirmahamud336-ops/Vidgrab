@@ -1003,14 +1003,15 @@ def download_video_file(
 
         # ── 1. ZERO-DISK DIRECT LIVE STREAMING ──
         stream_attempts = []
-        if cookies_path:
-            stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "-f", "b/best/18/22", "-o", "-", clean_url])
-            stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "--extractor-args", "youtube:player_client=web,mweb", "-f", "b/best/18/22", "-o", "-", clean_url])
+        if quality not in ("mp3_best", "m4a_best"):
+            if cookies_path:
+                stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "-f", "b/best/18/22", "-o", "-", clean_url])
+                stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "--extractor-args", "youtube:player_client=web,mweb", "-f", "b/best/18/22", "-o", "-", clean_url])
 
-        stream_attempts.extend([
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--extractor-args", "youtube:player_client=android_vr,tv,mweb,web_embedded", "-f", "b/best/18/22", "-o", "-", clean_url],
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-f", "b/best/18/22", "-o", "-", clean_url],
-        ]) if quality not in ("mp3_best", "m4a_best") else []
+            stream_attempts.extend([
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--extractor-args", "youtube:player_client=android_vr,tv,mweb,web_embedded", "-f", "b/best/18/22", "-o", "-", clean_url],
+                [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-f", "b/best/18/22", "-o", "-", clean_url],
+            ])
 
         for s_cmd in stream_attempts:
             if not s_cmd:
