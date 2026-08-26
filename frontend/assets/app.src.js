@@ -668,10 +668,23 @@
           const blob = await resp.blob();
 
           const disp = resp.headers.get('Content-Disposition') || '';
-          const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
           const ext = q.startsWith('mp3') ? 'mp3' : (q.startsWith('m4a') ? 'm4a' : 'mp4');
-          const defaultName = (videoData?.title || 'video') + '.' + ext;
-          const finalFilename = fnMatch ? decodeURIComponent(fnMatch[1].replace(/['"]/g, '')) : defaultName;
+          let finalFilename = '';
+          const utf8Match = disp.match(/filename\*=UTF-8''([^;\s]+)/i);
+          if (utf8Match) {
+            try { finalFilename = decodeURIComponent(utf8Match[1]); } catch(e){}
+          }
+          if (!finalFilename) {
+            const plainMatch = disp.match(/filename="?([^";]+)"?/i);
+            if (plainMatch) finalFilename = plainMatch[1];
+          }
+          if (!finalFilename || finalFilename === 'video.mp4' || finalFilename === 'video.mp3') {
+            if (videoData?.title && videoData.title !== 'video') {
+              finalFilename = `${videoData.title}.${ext}`;
+            } else {
+              finalFilename = `video_${Date.now()}.${ext}`;
+            }
+          }
 
           triggerBlob(blob, finalFilename);
 

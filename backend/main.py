@@ -479,15 +479,19 @@ def cleanup_partial_downloads(directory: str):
 
 def get_valid_cookies_path() -> Optional[str]:
     possible_paths = [
+        os.environ.get("YTDL_COOKIES_PATH"),
         os.path.join(BASE_DIR, "cookies.txt"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt"),
+        os.path.abspath("cookies.txt"),
+        "/opt/drawndimension/app/cookies.txt",
+        "/opt/drawndimension/app/vidgrab_repo/cookies.txt",
         "/root/vidgrab_backend/cookies.txt",
         "/root/vidgrab_backend/backend/cookies.txt",
         "/root/cookies.txt",
         "/tmp/cookies.txt",
     ]
     for path in possible_paths:
-        if os.path.exists(path) and os.path.getsize(path) > 10:
+        if path and os.path.exists(path) and os.path.getsize(path) > 10:
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
@@ -502,10 +506,10 @@ def get_valid_cookies_path() -> Optional[str]:
 
 
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
-    """Try fast strategies to extract video info: NO COOKIES FIRST, fallback to cookies if needed."""
+    """Try fast strategies to extract video info: cookies first if present, else android_vr/tv fallbacks."""
     cookies_path = get_valid_cookies_path()
 
-    # 1. Options WITHOUT cookies (preferred for public videos to avoid bad cookies blocking)
+    # 1. Options WITHOUT cookies
     no_cookie_opts = ydl_opts.copy()
     no_cookie_opts.pop("cookiefile", None)
 
@@ -514,18 +518,17 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
     if cookies_path:
         with_cookie_opts["cookiefile"] = cookies_path
 
-    valid_clients = ["ios", "android", "mweb", "web_embedded"]
+    valid_clients = ["android_vr", "android", "tv", "mweb", "web_embedded"]
 
-    strategies = [
-        # Strategy 1: WITHOUT cookies + ios, android, mweb, web_embedded (bypasses bad cookies & bot check)
-        lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": valid_clients}}},
-        # Strategy 2: WITHOUT cookies + default
-        lambda: no_cookie_opts,
-        # Strategy 3: WITH cookies + player clients (for age-gated/private videos)
-        lambda: {**with_cookie_opts, "extractor_args": {"youtube": {"player_client": valid_clients}}} if cookies_path else None,
-        # Strategy 4: WITH cookies + default
-        lambda: with_cookie_opts if cookies_path else None,
-    ]
+    strategies = []
+    if cookies_path:
+        # If cookies exist, try WITH cookies first (cookies work on web & mweb)
+        strategies.append(lambda: with_cookie_opts)
+        strategies.append(lambda: {**with_cookie_opts, "extractor_args": {"youtube": {"player_client": ["web", "mweb"]}}})
+
+    # Without cookies fallback
+    strategies.append(lambda: {**no_cookie_opts, "extractor_args": {"youtube": {"player_client": valid_clients}}})
+    strategies.append(lambda: no_cookie_opts)
 
     last_exc = None
     for get_opts in strategies:
@@ -544,6 +547,26 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
 
 
 def get_video_title(url: str) -> str:
+    # 1. Fast oEmbed for YouTube (0.1s, 100% accurate original title without cookies)
+    try:
+        if "youtube.com" in url or "youtu.be" in url:
+            r = requests.get(f"https://www.youtube.com/oembed?url={quote(url)}&format=json", timeout=2.5)
+            if r.status_code == 200:
+                t = r.json().get("title")
+                if t:
+                    return sanitize_filename(t)
+    except Exception:
+        pass
+
+    # 2. Fast OpenGraph for TikTok/FB/Instagram
+    try:
+        fast_m = get_fast_metadata(url)
+        if fast_m and fast_m.get("title") and fast_m.get("title") not in ("Video", "YouTube Video", "Instagram_Reel"):
+            return sanitize_filename(fast_m["title"])
+    except Exception:
+        pass
+
+    # 3. Fallback to yt-dlp extraction
     try:
         ydl_opts = {
             "quiet": True,
@@ -553,7 +576,7 @@ def get_video_title(url: str) -> str:
             "extractor_retries": 3,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "android", "mweb", "web_embedded"],
+                    "player_client": ["android_vr", "android", "tv", "mweb", "web_embedded"],
                 }
             },
         }
@@ -978,15 +1001,16 @@ def download_video_file(
     try:
         cookies_path = get_valid_cookies_path()
 
-        # ── 1. ZERO-DISK DIRECT LIVE STREAMING (Instant < 3s Response, 0 Bytes Saved to Server Disk) ──
-        stream_attempts = [
-            # Attempt A: NO COOKIES + Node.js JS Runtime + Android/MWeb (0 Disk Writes, Streams directly to user)
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android,mweb", "-f", "b/best/18/22", "-o", "-", clean_url],
-            # Attempt B: NO COOKIES + Node.js JS Runtime + Universal
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "-f", "b/best/18/22", "-o", "-", clean_url],
-            # Attempt C: WITH COOKIES
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--js-runtimes", "node", "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=android,mweb", "-f", "b/best/18/22", "--cookies", cookies_path, "-o", "-", clean_url] if cookies_path else None,
-        ] if quality not in ("mp3_best", "m4a_best") else []
+        # ── 1. ZERO-DISK DIRECT LIVE STREAMING ──
+        stream_attempts = []
+        if cookies_path:
+            stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "-f", "b/best/18/22", "-o", "-", clean_url])
+            stream_attempts.append([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--cookies", cookies_path, "--extractor-args", "youtube:player_client=web,mweb", "-f", "b/best/18/22", "-o", "-", clean_url])
+
+        stream_attempts.extend([
+            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "--extractor-args", "youtube:player_client=android_vr,tv,mweb,web_embedded", "-f", "b/best/18/22", "-o", "-", clean_url],
+            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-progress", "--no-check-certificates", "-f", "b/best/18/22", "-o", "-", clean_url],
+        ]) if quality not in ("mp3_best", "m4a_best") else []
 
         for s_cmd in stream_attempts:
             if not s_cmd:
@@ -996,10 +1020,11 @@ def download_video_file(
                 first_chunk = proc.stdout.read(65536)
                 if first_chunk and len(first_chunk) > 0:
                     log_download(url=url, title=safe_title, quality=quality, file_size=None, client_ip=client_ip)
-                    clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip()
+                    clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip() or f"video.{ext}"
                     encoded_fn = quote(final_filename, safe='')
                     headers = {
                         "Content-Disposition": f'attachment; filename="{clean_ascii_fn}"; filename*=UTF-8\'\'{encoded_fn}',
+                        "Access-Control-Expose-Headers": "Content-Disposition",
                         "Content-Type": "video/mp4" if ext == "mp4" else "application/octet-stream",
                         "X-Accel-Buffering": "no",
                         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -1027,19 +1052,19 @@ def download_video_file(
             except Exception:
                 pass
 
-        # ── 2. DISK DOWNLOAD FALLBACK (Node.js JS Runtime + Android/MWeb Players) ──
-        attempts = [
-            # Attempt 1: NO COOKIES + android,mweb (Bypasses bot checks & SABR)
-            {"cookies": None, "player_client": "android,mweb"},
-            # Attempt 2: NO COOKIES + default
+        # ── 2. DISK DOWNLOAD FALLBACK ──
+        attempts = []
+        if cookies_path:
+            attempts.append({"cookies": cookies_path, "player_client": None})
+            attempts.append({"cookies": cookies_path, "player_client": "web,mweb"})
+
+        attempts.extend([
+            {"cookies": None, "player_client": "android_vr,tv,mweb,web_embedded"},
             {"cookies": None, "player_client": None},
-            # Attempt 3: WITH COOKIES + android,mweb
-            {"cookies": cookies_path, "player_client": "android,mweb"} if cookies_path else None,
-            # Attempt 4: WITH COOKIES + default
-            {"cookies": cookies_path, "player_client": None} if cookies_path else None,
-        ]
+        ])
 
         last_res = None
+        has_node = bool(shutil.which("node"))
         for att in attempts:
             if not att:
                 continue
@@ -1048,10 +1073,11 @@ def download_video_file(
                 "--no-playlist",
                 "--no-progress",
                 "--no-check-certificates",
-                "--js-runtimes", "node",
-                "--remote-components", "ejs:github",
-                "-o", temp_template,
             ]
+            if has_node:
+                c_opts.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
+            c_opts.extend(["-o", temp_template])
+
             if att["player_client"]:
                 c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
 
@@ -1097,13 +1123,14 @@ def download_video_file(
         media_type = mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
         encoded_fn = quote(final_filename, safe='')
 
-        clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip()
+        clean_ascii_fn = re.sub(r'[^\w\s.-]', '_', final_filename).strip() or f"video.{ext}"
         return FileResponse(
             path=downloaded_filepath,
             media_type=media_type,
             filename=final_filename,
             headers={
                 "Content-Disposition": f'attachment; filename="{clean_ascii_fn}"; filename*=UTF-8\'\'{encoded_fn}',
+                "Access-Control-Expose-Headers": "Content-Disposition",
                 "X-Accel-Buffering": "no",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
             },

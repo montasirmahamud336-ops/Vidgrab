@@ -328,17 +328,35 @@ def build_download_options(quality: str, output_template: str):
         "sleep_requests": 1.0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "web"],
-                "player_skip": ["configs", "webpage", "js"],
+                "player_client": ["android_vr", "android", "tv", "mweb", "web_embedded"],
             }
         },
         "socket_timeout": 30,
         "outtmpl_na_placeholder": "video",
     }
-    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-    if os.path.exists(cookies_path):
+    cookies_path = get_valid_cookies_path()
+    if cookies_path:
         opts["cookiefile"] = cookies_path
     return opts
+
+
+def get_valid_cookies_path() -> str | None:
+    possible_paths = [
+        os.environ.get("YTDL_COOKIES_PATH"),
+        os.path.join(BASE_DIR, "cookies.txt"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt"),
+        os.path.abspath("cookies.txt"),
+        "/opt/drawndimension/app/cookies.txt",
+        "/opt/drawndimension/app/vidgrab_repo/cookies.txt",
+        "/root/vidgrab_backend/cookies.txt",
+        "/root/vidgrab_backend/backend/cookies.txt",
+        "/root/cookies.txt",
+        "/tmp/cookies.txt",
+    ]
+    for path in possible_paths:
+        if path and os.path.exists(path) and os.path.getsize(path) > 10:
+            return path
+    return None
 
 
 def find_latest_file(directory: str) -> str | None:
@@ -363,9 +381,9 @@ def cleanup_partial_downloads(directory: str):
 def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool):
     strategies = [
         lambda o: o,
-        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["web"], "player_skip": []}}},
-        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["android"], "player_skip": ["configs", "webpage", "js"]}}},
-        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["tv"], "player_skip": []}}},
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["android_vr", "android", "tv", "mweb", "web_embedded"]}}},
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["tv"]}}},
+        lambda o: {**o, "extractor_args": {"youtube": {"player_client": ["android_vr"]}}},
         lambda o: {**o, "sleep_requests": 2.0, "extractor_retries": 5},
     ]
 
@@ -485,13 +503,12 @@ def get_video_info(request: VideoRequest):
                 "sleep_requests": 1.0,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["web"],
-                        "player_skip": ["configs", "webpage", "js"],
+                        "player_client": ["android_vr", "android", "tv", "mweb", "web_embedded"],
                     }
                 },
             }
-            cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-            if os.path.exists(cookies_path):
+            cookies_path = get_valid_cookies_path()
+            if cookies_path:
                 playlist_opts["cookiefile"] = cookies_path
             try:
                 info = extract_with_cookie_fallback(request.url, playlist_opts, download=False)
@@ -534,14 +551,13 @@ def get_video_info(request: VideoRequest):
             "sleep_requests": 1.0,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web"],
-                    "player_skip": ["configs", "webpage", "js"],
+                    "player_client": ["android_vr", "android", "tv", "mweb", "web_embedded"],
                 }
             },
             "socket_timeout": 30,
         }
-        cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-        if os.path.exists(cookies_path):
+        cookies_path = get_valid_cookies_path()
+        if cookies_path:
             ydl_opts["cookiefile"] = cookies_path
         try:
             info = extract_with_cookie_fallback(request.url, ydl_opts, download=False)
@@ -651,8 +667,8 @@ def download_video_file(
     if quality == "mp3_best":
         cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "192k"])
 
-    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
-    if os.path.exists(cookies_path):
+    cookies_path = get_valid_cookies_path()
+    if cookies_path:
         cmd.extend(["--cookies", cookies_path])
 
     cached_path = get_cached_info_path(url)
