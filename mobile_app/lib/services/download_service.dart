@@ -22,6 +22,8 @@ class DownloadItem {
   String status; // 'downloading', 'completed', 'failed'
   String? filePath;
   String? errorMessage;
+  String? dateDownloaded;
+  String? platform;
 
   DownloadItem({
     required this.id,
@@ -36,7 +38,29 @@ class DownloadItem {
     this.status = 'downloading',
     this.filePath,
     this.errorMessage,
+    this.dateDownloaded,
+    this.platform,
   });
+
+  String get formattedFileSize {
+    if (totalBytes > 0) {
+      if (totalBytes > 1024 * 1024) {
+        return '${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      }
+      return '${(totalBytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (filePath != null) {
+      try {
+        final f = File(filePath!);
+        if (f.existsSync()) {
+          final l = f.lengthSync();
+          if (l > 1024 * 1024) return '${(l / (1024 * 1024)).toStringAsFixed(1)} MB';
+          return '${(l / 1024).toStringAsFixed(1)} KB';
+        }
+      } catch (_) {}
+    }
+    return 'Unknown size';
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -47,6 +71,9 @@ class DownloadItem {
         'thumbnail': thumbnail,
         'status': status,
         'filePath': filePath,
+        'totalBytes': totalBytes,
+        'dateDownloaded': dateDownloaded,
+        'platform': platform,
       };
 
   factory DownloadItem.fromJson(Map<String, dynamic> json) => DownloadItem(
@@ -58,6 +85,9 @@ class DownloadItem {
         thumbnail: json['thumbnail'] ?? '',
         status: json['status'] ?? 'completed',
         filePath: json['filePath'],
+        totalBytes: json['totalBytes'] ?? 0,
+        dateDownloaded: json['dateDownloaded'],
+        platform: json['platform'],
         progress: 1.0,
       );
 }
@@ -226,8 +256,15 @@ class DownloadProvider extends ChangeNotifier {
         dir = await getApplicationDocumentsDirectory();
       }
 
-      final safeTitle = item.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').replaceAll(' ', '_');
-      final fileName = '${safeTitle}_${item.quality}.${item.ext}';
+      final safeTitle = item.title
+          .replaceAll(RegExp(r'[<>:"/\\|?*\n\r\t]'), '_')
+          .replaceAll(' ', '_')
+          .trim();
+      final cleanTitle = safeTitle.length > 50 ? safeTitle.substring(0, 50) : (safeTitle.isNotEmpty ? safeTitle : 'video');
+      final effectiveExt = (item.ext == 'mp3' || item.quality.startsWith('mp3'))
+          ? 'mp3'
+          : ((item.ext == 'm4a' || item.quality.startsWith('m4a')) ? 'm4a' : 'mp4');
+      final fileName = '${cleanTitle}_${item.quality}.$effectiveExt';
       final file = File('${dir.path}/$fileName');
 
       final lowerUrl = item.videoUrl.toLowerCase();
@@ -241,16 +278,22 @@ class DownloadProvider extends ChangeNotifier {
           final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
 
           StreamInfo? streamInfo;
-          if (item.quality.startsWith('mp3') || item.quality.startsWith('m4a')) {
+          final isAudioRequest = item.ext == 'mp3' || item.ext == 'm4a' || item.quality.startsWith('mp3') || item.quality.startsWith('m4a');
+          if (isAudioRequest) {
             streamInfo = manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null;
-          } else if (item.quality == '360') {
-            final matching = manifest.muxed.where((s) => s.qualityLabel.contains('360'));
-            streamInfo = matching.isNotEmpty ? matching.first : (manifest.muxed.isNotEmpty ? manifest.muxed.first : null);
-          } else if (item.quality == '720') {
-            final matching = manifest.muxed.where((s) => s.qualityLabel.contains('720'));
-            streamInfo = matching.isNotEmpty ? matching.first : (manifest.muxed.isNotEmpty ? manifest.muxed.withHighestBitrate() : null);
           } else {
-            streamInfo = manifest.muxed.isNotEmpty ? manifest.muxed.withHighestBitrate() : (manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null);
+            // Video request: MUST be muxed (video + audio combined) so it opens in video players
+            if (manifest.muxed.isNotEmpty) {
+              if (item.quality == '360') {
+                final m360 = manifest.muxed.where((s) => s.qualityLabel.contains('360'));
+                streamInfo = m360.isNotEmpty ? m360.first : manifest.muxed.first;
+              } else if (item.quality == '720') {
+                final m720 = manifest.muxed.where((s) => s.qualityLabel.contains('720'));
+                streamInfo = m720.isNotEmpty ? m720.first : manifest.muxed.withHighestBitrate();
+              } else {
+                streamInfo = manifest.muxed.withHighestBitrate();
+              }
+            }
           }
 
           if (streamInfo != null) {
@@ -334,6 +377,22 @@ class DownloadProvider extends ChangeNotifier {
       item.status = 'completed';
       item.filePath = file.path;
       item.progress = 1.0;
+      final now = DateTime.now();
+      item.dateDownloaded = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      if (item.videoUrl.contains('youtube') || item.videoUrl.contains('youtu.be')) {
+        item.platform = 'YouTube';
+      } else if (item.videoUrl.contains('instagram')) {
+        item.platform = 'Instagram';
+      } else if (item.videoUrl.contains('tiktok')) {
+        item.platform = 'TikTok';
+      } else if (item.videoUrl.contains('facebook') || item.videoUrl.contains('fb.')) {
+        item.platform = 'Facebook';
+      } else {
+        item.platform = 'Video';
+      }
+      if (file.existsSync()) {
+        item.totalBytes = file.lengthSync();
+      }
 
       _activeDownloads.remove(item);
       _completedDownloads.insert(0, item);
