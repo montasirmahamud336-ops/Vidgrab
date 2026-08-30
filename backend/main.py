@@ -597,7 +597,8 @@ def build_download_options(quality: str, output_template: str, cookie_path: Opti
         "sleep_requests": 0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "mweb", "android", "android_vr"],
+                "player_client": ["android", "android_vr", "mweb"],
+                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -676,8 +677,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
 
     # 1. Immune player clients without cookies (fastest and immune to Botguard / expired cookies)
     no_cookies = base_opts.copy()
-    # 1. Immune player clients + POT Provider without cookies
-    # 1. Primary Strategy: PO Token Provider on Web & Mobile Web clients (100% Attestation & Zero Botguard block)
+    # 1. Primary Strategy: Immune Android & Mobile Web clients with POT
     no_cookies = base_opts.copy()
     no_cookies.pop("cookiefile", None)
 
@@ -685,7 +685,8 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "mweb", "web_safari", "android"],
+                "player_client": ["android", "android_vr", "mweb"],
+                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -700,7 +701,8 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
             **w_cookies,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "mweb", "android"],
+                    "player_client": ["android", "mweb", "android_vr"],
+                    "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
                 },
                 "youtubepot-bgutilhttp": {
                     "base_url": ["http://127.0.0.1:4416"],
@@ -714,7 +716,8 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "android_vr", "mweb"],
+                "player_client": ["mweb", "android_vr"],
+                "player_skip": ["web", "tv", "ios"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -1238,10 +1241,11 @@ def download_video_file(
             if has_node:
                 base_cmd.extend(["--js-runtimes", "node"])
 
-            # 1. Primary: PO Token Provider on Web & Mobile Web (100% Attestation & Zero Botguard block)
+            # 1. Primary: Immune Android & Mobile Web clients with POT
             stream_attempts.append(base_cmd + [
+                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
+                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
                 "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                "--extractor-args", "youtube:player_client=web,mweb,android",
                 "-f", "b/best/18/22", "-o", "-", clean_url
             ])
 
@@ -1256,8 +1260,9 @@ def download_video_file(
             if cookie_path and os.path.exists(cookie_path):
                 stream_attempts.append(base_cmd + [
                     "--cookies", cookie_path,
+                    "--extractor-args", "youtube:player_client=android,mweb,android_vr",
+                    "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-f", "b/best/18/22", "-o", "-", clean_url
                 ])
 
@@ -1306,9 +1311,9 @@ def download_video_file(
 
         # ── 2. DISK DOWNLOAD FALLBACK ──
         attempts = [
-            {"cookies": None, "player_client": "web,mweb,android", "use_pot": True, "skip_web": False},
+            {"cookies": None, "player_client": "android,android_vr,mweb", "use_pot": True, "skip_web": True},
             {"cookies": None, "player_client": "android,android_vr,mweb", "use_pot": False, "skip_web": True},
-            {"cookies": cookie_path if (cookie_path and os.path.exists(cookie_path)) else None, "player_client": "web,mweb", "use_pot": True, "skip_web": False},
+            {"cookies": cookie_path if (cookie_path and os.path.exists(cookie_path)) else None, "player_client": "android,mweb", "use_pot": True, "skip_web": True},
             {"cookies": None, "player_client": None, "use_pot": False, "skip_web": False},
         ]
 
