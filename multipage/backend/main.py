@@ -599,7 +599,10 @@ def build_download_options(quality: str, output_template: str, cookie_path: Opti
             "youtube": {
                 "player_client": ["android", "android_vr", "mweb"],
                 "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
-            }
+            },
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"],
+            },
         },
         "socket_timeout": 15,
         "outtmpl_na_placeholder": "video",
@@ -674,6 +677,8 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
 
     # 1. Immune player clients without cookies (fastest and immune to Botguard / expired cookies)
     no_cookies = base_opts.copy()
+    # 1. Immune player clients + POT Provider without cookies
+    no_cookies = base_opts.copy()
     no_cookies.pop("cookiefile", None)
 
     strategies.append(lambda: {
@@ -682,7 +687,10 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
             "youtube": {
                 "player_client": ["android", "android_vr", "mweb"],
                 "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
-            }
+            },
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"],
+            },
         }
     })
 
@@ -695,7 +703,10 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
                 "youtube": {
                     "player_client": ["android", "mweb", "android_vr"],
                     "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
-                }
+                },
+                "youtubepot-bgutilhttp": {
+                    "base_url": ["http://127.0.0.1:4416"],
+                },
             }
         })
         strategies.append(lambda: w_cookies)
@@ -707,7 +718,10 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
             "youtube": {
                 "player_client": ["mweb", "android_vr"],
                 "player_skip": ["web", "tv", "ios"],
-            }
+            },
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"],
+            },
         }
     })
 
@@ -1231,6 +1245,7 @@ def download_video_file(
             stream_attempts.append(base_cmd + [
                 "--extractor-args", "youtube:player_client=android,android_vr,mweb",
                 "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
                 "-f", "b/best/18/22", "-o", "-", clean_url
             ])
 
@@ -1240,6 +1255,7 @@ def download_video_file(
                     "--cookies", cookie_path,
                     "--extractor-args", "youtube:player_client=android,mweb,android_vr",
                     "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
                     "-f", "b/best/18/22", "-o", "-", clean_url
                 ])
 
