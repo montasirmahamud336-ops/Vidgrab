@@ -101,40 +101,48 @@ class ApiService {
 
     // 1. Direct On-Device YouTube Engine (100% immune to VPS datacenter blocks & bot challenges)
     if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      final yt = YoutubeExplode();
       try {
-        final yt = YoutubeExplode();
-        try {
-          final video = await yt.videos.get(videoUrl).timeout(const Duration(seconds: 10));
-          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 10));
+        final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(videoUrl);
+        final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : videoUrl.trim();
+        final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 15));
+        final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
 
-          final qualities = <Map<String, String>>[];
-          final has720 = manifest.muxed.any((s) => s.qualityLabel.contains('720'));
-          final has360 = manifest.muxed.any((s) => s.qualityLabel.contains('360'));
+        final qualities = <Map<String, String>>[];
+        final has1080 = manifest.video.any((s) => s.qualityLabel.contains('1080'));
+        final has720 = manifest.video.any((s) => s.qualityLabel.contains('720'));
+        final has480 = manifest.video.any((s) => s.qualityLabel.contains('480'));
+        final has360 = manifest.video.any((s) => s.qualityLabel.contains('360'));
 
-          qualities.add({'label': 'Best Quality', 'value': 'best'});
-          if (has720) qualities.add({'label': '720p HD', 'value': '720'});
-          if (has360) qualities.add({'label': '360p SD', 'value': '360'});
+        qualities.add({'label': 'Best Quality', 'value': 'best'});
+        if (has1080) qualities.add({'label': '1080p Full HD', 'value': '1080'});
+        if (has720) qualities.add({'label': '720p HD', 'value': '720'});
+        if (has480) qualities.add({'label': '480p SD', 'value': '480'});
+        if (has360) qualities.add({'label': '360p SD', 'value': '360'});
 
-          final audioQualities = [
-            {'label': 'MP3 (Best Quality)', 'value': 'mp3_best'},
-            {'label': 'M4A (Best Quality)', 'value': 'm4a_best'},
-          ];
+        final audioQualities = [
+          {'label': 'MP3 (High Quality)', 'value': 'mp3_best'},
+          {'label': 'M4A (High Quality)', 'value': 'm4a_best'},
+        ];
 
-          return {
-            'is_playlist': false,
-            'title': video.title,
-            'uploader': video.author,
-            'thumbnail': video.thumbnails.highResUrl,
-            'duration': video.duration?.inSeconds,
-            'video_qualities': qualities,
-            'audio_qualities': audioQualities,
-            '_is_direct_yt': true,
-          };
-        } finally {
-          yt.close();
+        return {
+          'is_playlist': false,
+          'title': video.title,
+          'uploader': video.author,
+          'thumbnail': video.thumbnails.highResUrl,
+          'duration': video.duration?.inSeconds,
+          'video_qualities': qualities,
+          'audio_qualities': audioQualities,
+          '_is_direct_yt': true,
+        };
+      } catch (e) {
+        // If on-device fails, only try VPS if cookies are present
+        final userCookies = await getUserCookiesForUrl(videoUrl);
+        if (userCookies == null) {
+          throw Exception('Could not extract YouTube video: ${e.toString()}');
         }
-      } catch (_) {
-        // Fallback to VPS backend if on-device fails
+      } finally {
+        yt.close();
       }
     }
 

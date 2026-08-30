@@ -6,7 +6,6 @@ import 'services/download_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/settings_screen.dart';
-import 'widgets/download_bottom_sheet.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,32 +84,9 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
       final url = match.group(0)!;
       setState(() {
         _sharedUrl = url;
-        _currentIndex = 0; // Switch to Download HomeScreen
-      });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showQuickShareOverlay(url);
+        _currentIndex = 0; // Switch to Download HomeScreen which handles single bottom sheet
       });
     }
-  }
-
-  void _showQuickShareOverlay(String url) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) => DownloadBottomSheet(
-        rawUrl: url,
-        onDownloadStarted: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('VidGrab: Download started in background!'),
-              backgroundColor: Color(0xFFFACC15),
-            ),
-          );
-        },
-      ),
-    );
   }
 
   @override

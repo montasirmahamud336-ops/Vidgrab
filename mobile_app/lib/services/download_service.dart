@@ -314,7 +314,9 @@ class DownloadProvider extends ChangeNotifier {
       if (lowerUrl.contains('youtube.com') || lowerUrl.contains('youtu.be')) {
         final yt = YoutubeExplode();
         try {
-          final video = await yt.videos.get(item.videoUrl).timeout(const Duration(seconds: 15));
+          final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(item.videoUrl);
+          final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : item.videoUrl.trim();
+          final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 15));
           final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
 
           StreamInfo? streamInfo;
@@ -322,7 +324,7 @@ class DownloadProvider extends ChangeNotifier {
           if (isAudioRequest) {
             streamInfo = manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null;
           } else {
-            // Video request: MUST be muxed (video + audio combined) so it opens in video players
+            // Video request: First look for muxed stream (360p or 720p)
             if (manifest.muxed.isNotEmpty) {
               if (item.quality == '360') {
                 final m360 = manifest.muxed.where((s) => s.qualityLabel.contains('360'));
@@ -333,6 +335,8 @@ class DownloadProvider extends ChangeNotifier {
               } else {
                 streamInfo = manifest.muxed.withHighestBitrate();
               }
+            } else if (manifest.video.isNotEmpty) {
+              streamInfo = manifest.video.withHighestBitrate();
             }
           }
 
@@ -363,9 +367,15 @@ class DownloadProvider extends ChangeNotifier {
 
             await sink.close();
             downloadedDirectly = true;
+          } else {
+            throw Exception('No stream available for requested quality');
           }
-        } catch (_) {
-          // If direct on-device fails, fallback to VPS endpoint below
+        } catch (e) {
+          // If on-device YouTube fails, only fallback to VPS if user has connected cookies
+          final userCookies = await ApiService.getUserCookiesForUrl(item.videoUrl);
+          if (userCookies == null) {
+            throw Exception('YouTube download failed: ${e.toString()}');
+          }
         } finally {
           yt.close();
         }
