@@ -597,8 +597,8 @@ def build_download_options(quality: str, output_template: str, cookie_path: Opti
         "sleep_requests": 0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android_vr", "tv", "ios", "android", "mweb"],
-                "player_skip": ["web", "web_safari"],
+                "player_client": ["android", "android_vr", "mweb"],
+                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
             }
         },
         "socket_timeout": 15,
@@ -672,37 +672,41 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
 
     strategies = []
 
-    # 1. Options with cookies (if valid cookie file exists)
-    if active_cookie_path and os.path.exists(active_cookie_path):
-        w_cookies = {**base_opts, "cookiefile": active_cookie_path}
-        # Client set that accepts cookies without web botguard verification
-        strategies.append(lambda: {
-            **w_cookies,
-            "extractor_args": {"youtube": {"player_client": ["tv", "ios", "mweb", "android"]}}
-        })
-        strategies.append(lambda: w_cookies)
-
-    # 2. Options without cookies (immune to botguard)
+    # 1. Immune player clients without cookies (fastest and immune to Botguard / expired cookies)
     no_cookies = base_opts.copy()
     no_cookies.pop("cookiefile", None)
 
-    # Immune player clients (android_vr, tv, ios, android)
     strategies.append(lambda: {
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android_vr", "tv", "ios", "android"],
-                "player_skip": ["web", "web_safari"],
+                "player_client": ["android", "android_vr", "mweb"],
+                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
             }
         }
     })
 
-    # Web embedded / mweb fallback
+    # 2. Options with cookies (if user session cookies provided)
+    if active_cookie_path and os.path.exists(active_cookie_path):
+        w_cookies = {**base_opts, "cookiefile": active_cookie_path}
+        strategies.append(lambda: {
+            **w_cookies,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "mweb", "android_vr"],
+                    "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
+                }
+            }
+        })
+        strategies.append(lambda: w_cookies)
+
+    # 3. Fallback client combinations
     strategies.append(lambda: {
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded", "tv", "mweb"],
+                "player_client": ["mweb", "android_vr"],
+                "player_skip": ["web", "tv", "ios"],
             }
         }
     })
@@ -1223,11 +1227,22 @@ def download_video_file(
             if has_node:
                 base_cmd.extend(["--js-runtimes", "node"])
 
-            if cookie_path and os.path.exists(cookie_path):
-                stream_attempts.append(base_cmd + ["--cookies", cookie_path, "--extractor-args", "youtube:player_client=tv,ios,mweb,android", "-f", "b/best/18/22", "-o", "-", clean_url])
-                stream_attempts.append(base_cmd + ["--cookies", cookie_path, "-f", "b/best/18/22", "-o", "-", clean_url])
+            # 1. Immune client without cookies (fastest & bypasses Botguard completely)
+            stream_attempts.append(base_cmd + [
+                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
+                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                "-f", "b/best/18/22", "-o", "-", clean_url
+            ])
 
-            stream_attempts.append(base_cmd + ["--extractor-args", "youtube:player_client=android_vr,tv,ios,android", "--extractor-args", "youtube:player_skip=web,web_safari", "-f", "b/best/18/22", "-o", "-", clean_url])
+            # 2. With user session cookies if provided
+            if cookie_path and os.path.exists(cookie_path):
+                stream_attempts.append(base_cmd + [
+                    "--cookies", cookie_path,
+                    "--extractor-args", "youtube:player_client=android,mweb,android_vr",
+                    "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                    "-f", "b/best/18/22", "-o", "-", clean_url
+                ])
+
             stream_attempts.append(base_cmd + ["-f", "b/best/18/22", "-o", "-", clean_url])
 
         for s_cmd in stream_attempts:
@@ -1272,14 +1287,12 @@ def download_video_file(
                 pass
 
         # ── 2. DISK DOWNLOAD FALLBACK ──
-        attempts = []
-        if cookie_path and os.path.exists(cookie_path):
-            attempts.append({"cookies": cookie_path, "player_client": "tv,ios,mweb,android", "skip_web": False})
-            attempts.append({"cookies": cookie_path, "player_client": None, "skip_web": False})
-
-        attempts.append({"cookies": None, "player_client": "android_vr,tv,ios,android", "skip_web": True})
-        attempts.append({"cookies": None, "player_client": "web_embedded,tv,mweb", "skip_web": False})
-        attempts.append({"cookies": None, "player_client": None, "skip_web": False})
+        attempts = [
+            {"cookies": None, "player_client": "android,android_vr,mweb", "skip_web": True},
+            {"cookies": cookie_path if (cookie_path and os.path.exists(cookie_path)) else None, "player_client": "android,mweb,android_vr", "skip_web": True},
+            {"cookies": None, "player_client": "mweb,android_vr", "skip_web": True},
+            {"cookies": None, "player_client": None, "skip_web": False},
+        ]
 
         last_res = None
         for att in attempts:
