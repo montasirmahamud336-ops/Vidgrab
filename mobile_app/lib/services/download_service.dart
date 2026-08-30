@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'api_service.dart';
+import 'native_service.dart';
 
 class DownloadItem {
   final String id;
@@ -96,15 +97,18 @@ class DownloadProvider extends ChangeNotifier {
   final List<DownloadItem> _activeDownloads = [];
   final List<DownloadItem> _completedDownloads = [];
   final List<DownloadItem> _failedDownloads = [];
+  String _customStorageDir = '/storage/emulated/0/Download/VidGrab';
 
   List<DownloadItem> get activeDownloads => _activeDownloads;
   List<DownloadItem> get completedDownloads => _completedDownloads;
   List<DownloadItem> get failedDownloads => _failedDownloads;
+  String get customStorageDir => _customStorageDir;
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
   DownloadProvider() {
     _initNotifications();
+    _loadStorageSettings();
     _loadPersistedDownloads();
   }
 
@@ -112,6 +116,33 @@ class DownloadProvider extends ChangeNotifier {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
     await _notificationsPlugin.initialize(initSettings);
+  }
+
+  Future<void> _loadStorageSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('vidgrab_custom_storage_dir');
+      if (saved != null && saved.trim().isNotEmpty) {
+        _customStorageDir = saved.trim();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setCustomStorageDir(String newDir) async {
+    final clean = newDir.trim();
+    if (clean.isNotEmpty) {
+      _customStorageDir = clean;
+      try {
+        final d = Directory(clean);
+        if (!await d.exists()) {
+          await d.create(recursive: true);
+        }
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('vidgrab_custom_storage_dir', clean);
+      } catch (_) {}
+      notifyListeners();
+    }
   }
 
   Future<void> _loadPersistedDownloads() async {
@@ -129,7 +160,7 @@ class DownloadProvider extends ChangeNotifier {
         }
       }
 
-      // Also scan VidGrab download directory for external files
+      // Also scan active download directory for external files
       await _scanDownloadDirectory();
       notifyListeners();
     } catch (_) {}
@@ -237,19 +268,28 @@ class DownloadProvider extends ChangeNotifier {
       Directory dir;
       if (Platform.isAndroid) {
         try {
-          final externalDir = Directory('/storage/emulated/0/Download/VidGrab');
-          if (!await externalDir.exists()) {
-            await externalDir.create(recursive: true);
+          final targetDir = Directory(_customStorageDir);
+          if (!await targetDir.exists()) {
+            await targetDir.create(recursive: true);
           }
-          dir = externalDir;
+          dir = targetDir;
         } catch (_) {
           try {
-            dir = Directory('/storage/emulated/0/Download');
-            if (!await dir.exists()) {
-              await dir.create(recursive: true);
+            final fallbackDir = Directory('/storage/emulated/0/Download/VidGrab');
+            if (!await fallbackDir.exists()) {
+              await fallbackDir.create(recursive: true);
             }
+            dir = fallbackDir;
           } catch (_) {
-            dir = (await getExternalStorageDirectory()) ?? (await getApplicationDocumentsDirectory());
+            try {
+              final mainDownloadDir = Directory('/storage/emulated/0/Download');
+              if (!await mainDownloadDir.exists()) {
+                await mainDownloadDir.create(recursive: true);
+              }
+              dir = mainDownloadDir;
+            } catch (_) {
+              dir = (await getExternalStorageDirectory()) ?? (await getApplicationDocumentsDirectory());
+            }
           }
         }
       } else {
@@ -401,6 +441,7 @@ class DownloadProvider extends ChangeNotifier {
 
       await _notificationsPlugin.cancel(notificationId);
       _showCompletedNotification(item.title);
+      NativeService.scanFile(file.path);
     } catch (e) {
       item.status = 'failed';
       item.errorMessage = ApiService.sanitizeErrorMessage(e.toString());

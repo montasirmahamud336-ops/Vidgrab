@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/download_service.dart';
 import '../services/api_service.dart';
+import '../services/native_service.dart';
 
 class DownloadsScreen extends StatelessWidget {
   const DownloadsScreen({Key? key}) : super(key: key);
@@ -39,7 +40,8 @@ class DownloadsScreen extends StatelessWidget {
       );
       return;
     }
-    OpenFilex.open(item.filePath!);
+    final mime = _getMimeType(item);
+    NativeService.openWith(item.filePath!, mimeType: mime);
   }
 
   void _shareFile(BuildContext context, DownloadItem item) {
@@ -179,6 +181,129 @@ class DownloadsScreen extends StatelessWidget {
     );
   }
 
+  void _showEditStorageDialog(BuildContext context) {
+    final provider = Provider.of<DownloadProvider>(context, listen: false);
+    final current = provider.customStorageDir;
+    final controller = TextEditingController(text: current);
+
+    final presets = [
+      {'label': 'Downloads / VidGrab (Recommended)', 'path': '/storage/emulated/0/Download/VidGrab'},
+      {'label': 'Main Downloads Folder', 'path': '/storage/emulated/0/Download'},
+      {'label': 'Movies / VidGrab', 'path': '/storage/emulated/0/Movies/VidGrab'},
+      {'label': 'DCIM / VidGrab (Gallery)', 'path': '/storage/emulated/0/DCIM/VidGrab'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF18181B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: const Color(0xFFFACC15).withValues(alpha: 0.3)),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.folder_open_rounded, color: Color(0xFFFACC15), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Storage Folder',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Choose where downloaded videos & audios are saved:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 14),
+                ...presets.map((p) {
+                  final isSelected = controller.text.trim() == p['path'];
+                  return InkWell(
+                    onTap: () {
+                      setDialogState(() {
+                        controller.text = p['path']!;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFFACC15).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: isSelected ? const Color(0xFFFACC15) : Colors.white10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, color: isSelected ? const Color(0xFFFACC15) : Colors.grey, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(p['label']!, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                Text(p['path']!, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                const Text('Or type custom folder path:', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.black26,
+                    hintText: '/storage/emulated/0/...',
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 11),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFACC15))),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFACC15),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                final target = controller.text.trim();
+                if (target.isNotEmpty) {
+                  await provider.setCustomStorageDir(target);
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Storage directory updated to: $target'), backgroundColor: const Color(0xFF18181B)),
+                  );
+                }
+              },
+              child: const Text('Save & Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<DownloadProvider>(context);
@@ -202,17 +327,30 @@ class DownloadsScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.2)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.folder_special_rounded, color: Color(0xFFFACC15), size: 22),
-                SizedBox(width: 10),
+                const Icon(Icons.folder_special_rounded, color: Color(0xFFFACC15), size: 24),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Storage Folder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      Text('Internal Storage > Download > VidGrab', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const Text('Download Storage Folder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(provider.customStorageDir, style: const TextStyle(color: Colors.grey, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
+                  ),
+                ),
+                InkWell(
+                  onTap: () => _showEditStorageDialog(context),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFACC15).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.4)),
+                    ),
+                    child: const Text('Change', style: TextStyle(color: Color(0xFFFACC15), fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
