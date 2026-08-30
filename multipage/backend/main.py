@@ -672,12 +672,6 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
 
     strategies = []
 
-    # 1. Immune player clients without cookies (fastest and immune to Botguard / expired cookies)
-    no_cookies = base_opts.copy()
-    # 1. Primary Strategy: Immune Android & Mobile Web clients with POT
-    no_cookies = base_opts.copy()
-    no_cookies.pop("cookiefile", None)
-
     # 1. Primary Strategy: Immune Android & Mobile Web clients (100% Botguard immune)
     no_cookies = base_opts.copy()
     no_cookies.pop("cookiefile", None)
@@ -1233,10 +1227,6 @@ def download_video_file(
             if has_node:
                 base_cmd.extend(["--js-runtimes", "node"])
 
-            # 1. Primary: Immune Android & Mobile Web clients with POT
-            stream_attempts.append(base_cmd + [
-                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
-                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
             # 1. Primary: Immune Android & Mobile Web clients (bypasses Botguard completely)
             stream_attempts.append(base_cmd + [
                 "--extractor-args", "youtube:player_client=android,android_vr,mweb",
