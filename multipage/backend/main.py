@@ -597,8 +597,7 @@ def build_download_options(quality: str, output_template: str, cookie_path: Opti
         "sleep_requests": 0,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "android_vr", "mweb"],
-                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
+                "player_client": ["web", "mweb", "android", "android_vr"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -678,6 +677,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
     # 1. Immune player clients without cookies (fastest and immune to Botguard / expired cookies)
     no_cookies = base_opts.copy()
     # 1. Immune player clients + POT Provider without cookies
+    # 1. Primary Strategy: PO Token Provider on Web & Mobile Web clients (100% Attestation & Zero Botguard block)
     no_cookies = base_opts.copy()
     no_cookies.pop("cookiefile", None)
 
@@ -685,8 +685,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "android_vr", "mweb"],
-                "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
+                "player_client": ["web", "mweb", "web_safari", "android"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -694,15 +693,14 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
         }
     })
 
-    # 2. Options with cookies (if user session cookies provided)
+    # 2. Options with user session cookies + POT
     if active_cookie_path and os.path.exists(active_cookie_path):
         w_cookies = {**base_opts, "cookiefile": active_cookie_path}
         strategies.append(lambda: {
             **w_cookies,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "mweb", "android_vr"],
-                    "player_skip": ["web", "tv", "ios", "web_safari", "web_creator"],
+                    "player_client": ["web", "mweb", "android"],
                 },
                 "youtubepot-bgutilhttp": {
                     "base_url": ["http://127.0.0.1:4416"],
@@ -716,8 +714,7 @@ def extract_with_cookie_fallback(url: str, ydl_opts: dict, download: bool, cooki
         **no_cookies,
         "extractor_args": {
             "youtube": {
-                "player_client": ["mweb", "android_vr"],
-                "player_skip": ["web", "tv", "ios"],
+                "player_client": ["android", "android_vr", "mweb"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"],
@@ -1241,21 +1238,26 @@ def download_video_file(
             if has_node:
                 base_cmd.extend(["--js-runtimes", "node"])
 
-            # 1. Immune client without cookies (fastest & bypasses Botguard completely)
+            # 1. Primary: PO Token Provider on Web & Mobile Web (100% Attestation & Zero Botguard block)
             stream_attempts.append(base_cmd + [
-                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
-                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
                 "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                "--extractor-args", "youtube:player_client=web,mweb,android",
                 "-f", "b/best/18/22", "-o", "-", clean_url
             ])
 
-            # 2. With user session cookies if provided
+            # 2. Fallback: Immune android clients without POT
+            stream_attempts.append(base_cmd + [
+                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
+                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                "-f", "b/best/18/22", "-o", "-", clean_url
+            ])
+
+            # 3. With user session cookies if provided
             if cookie_path and os.path.exists(cookie_path):
                 stream_attempts.append(base_cmd + [
                     "--cookies", cookie_path,
-                    "--extractor-args", "youtube:player_client=android,mweb,android_vr",
-                    "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                    "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-f", "b/best/18/22", "-o", "-", clean_url
                 ])
 
@@ -1304,10 +1306,10 @@ def download_video_file(
 
         # ── 2. DISK DOWNLOAD FALLBACK ──
         attempts = [
-            {"cookies": None, "player_client": "android,android_vr,mweb", "skip_web": True},
-            {"cookies": cookie_path if (cookie_path and os.path.exists(cookie_path)) else None, "player_client": "android,mweb,android_vr", "skip_web": True},
-            {"cookies": None, "player_client": "mweb,android_vr", "skip_web": True},
-            {"cookies": None, "player_client": None, "skip_web": False},
+            {"cookies": None, "player_client": "web,mweb,android", "use_pot": True, "skip_web": False},
+            {"cookies": None, "player_client": "android,android_vr,mweb", "use_pot": False, "skip_web": True},
+            {"cookies": cookie_path if (cookie_path and os.path.exists(cookie_path)) else None, "player_client": "web,mweb", "use_pot": True, "skip_web": False},
+            {"cookies": None, "player_client": None, "use_pot": False, "skip_web": False},
         ]
 
         last_res = None
@@ -1322,6 +1324,8 @@ def download_video_file(
                 c_opts.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
             c_opts.extend(["-o", temp_template])
 
+            if att.get("use_pot"):
+                c_opts.extend(["--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"])
             if att.get("player_client"):
                 c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
             if att.get("skip_web"):
