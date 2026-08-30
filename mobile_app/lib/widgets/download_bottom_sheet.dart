@@ -145,6 +145,7 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
     }
 
     final title = _info?['title'] ?? 'Video';
+    final thumbnail = _info?['thumbnail']?.toString() ?? '';
     final videoQualities = _info?['video_qualities'] as List<dynamic>? ?? [];
     final audioQualities = _info?['audio_qualities'] as List<dynamic>? ?? [];
 
@@ -171,12 +172,36 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
           ),
           const SizedBox(height: 16),
 
-          // Title & Header
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          // Thumbnail & Title Header
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (thumbnail.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    ApiService.getProxyImageUrl(thumbnail),
+                    width: 90,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 90,
+                      height: 60,
+                      color: const Color(0xFF27272A),
+                      child: const Icon(Icons.video_library, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              if (thumbnail.isNotEmpty) const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, height: 1.3),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
 

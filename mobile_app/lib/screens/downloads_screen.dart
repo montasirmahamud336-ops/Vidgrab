@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/download_service.dart';
+import '../services/api_service.dart';
 
 class DownloadsScreen extends StatelessWidget {
   const DownloadsScreen({Key? key}) : super(key: key);
@@ -132,7 +133,7 @@ class DownloadsScreen extends StatelessWidget {
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: item.thumbnail.isNotEmpty
-              ? Image.network(item.thumbnail, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.play_circle_fill, color: Color(0xFFFACC15), size: 40))
+              ? Image.network(ApiService.getProxyImageUrl(item.thumbnail), width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.play_circle_fill, color: Color(0xFFFACC15), size: 40))
               : const Icon(Icons.play_circle_fill, color: Color(0xFFFACC15), size: 40),
         ),
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),

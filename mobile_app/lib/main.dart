@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'services/download_service.dart';
@@ -50,7 +49,6 @@ class MainNavigationWrapper extends StatefulWidget {
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
   String? _sharedUrl;
-  bool _isOverlayMode = false;
   StreamSubscription? _intentSubscription;
 
   @override
@@ -60,19 +58,19 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   }
 
   void _initShareIntent() {
-    // Listen for shared text/links when app is in memory (Instagram, YouTube, FB, TikTok)
+    // Listen for shared links/text (Instagram, YouTube, FB, TikTok)
     _intentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        for (final file in value) {
+      for (final file in value) {
+        if (file.path.isNotEmpty) {
           _processSharedText(file.path);
         }
       }
-    }, onError: (err) {});
+    }, onError: (_) {});
 
-    // Listen for shared text/links when app is opened from closed state
+    // Initial shared links when app opened from closed state
     ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        for (final file in value) {
+      for (final file in value) {
+        if (file.path.isNotEmpty) {
           _processSharedText(file.path);
         }
       }
@@ -87,8 +85,9 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
       final url = match.group(0)!;
       setState(() {
         _sharedUrl = url;
-        _isOverlayMode = true;
+        _currentIndex = 0; // Switch to Download HomeScreen
       });
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showQuickShareOverlay(url);
       });
@@ -100,7 +99,6 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black54, // Semi-transparent backdrop over Facebook/YouTube
       builder: (modalContext) => DownloadBottomSheet(
         rawUrl: url,
         onDownloadStarted: () {
@@ -110,18 +108,9 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
               backgroundColor: Color(0xFFFACC15),
             ),
           );
-          // Return user directly back to Facebook/YouTube/Instagram
-          Future.delayed(const Duration(milliseconds: 500), () {
-            SystemNavigator.pop();
-          });
         },
       ),
-    ).then((_) {
-      if (_isOverlayMode) {
-        // If bottom sheet dismissed, return to social media app
-        SystemNavigator.pop();
-      }
-    });
+    );
   }
 
   @override
@@ -132,13 +121,6 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    // If launched via Share Intent, render transparent Scaffold over social media app!
-    if (_isOverlayMode) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Container(),
-      );
-    }
 
     final screens = [
       HomeScreen(initialUrl: _sharedUrl),

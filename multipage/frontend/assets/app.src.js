@@ -183,6 +183,129 @@
       return null;
     }
 
+    // ─── Direct User Sessions (YouTube & Instagram) ───
+    const YT_SESSION_KEY = 'vidgrab_yt_cookies';
+    const IG_SESSION_KEY = 'vidgrab_ig_cookies';
+
+    function getUserCookies(platformName) {
+      if (!platformName) return null;
+      const p = String(platformName).toLowerCase();
+      if (p.includes('youtube')) {
+        return (localStorage.getItem(YT_SESSION_KEY) || '').trim() || null;
+      }
+      if (p.includes('instagram')) {
+        return (localStorage.getItem(IG_SESSION_KEY) || '').trim() || null;
+      }
+      return null;
+    }
+
+    function updateSessionUI() {
+      const ytCookies = (localStorage.getItem(YT_SESSION_KEY) || '').trim();
+      const igCookies = (localStorage.getItem(IG_SESSION_KEY) || '').trim();
+
+      const dot = $('sessionDot');
+      if (dot) {
+        if (ytCookies || igCookies) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
+        }
+      }
+
+      const ytBadge = $('ytStatusBadge');
+      if (ytBadge) {
+        if (ytCookies) {
+          ytBadge.textContent = 'Connected ✅';
+          ytBadge.className = 'session-status connected';
+        } else {
+          ytBadge.textContent = 'Not Connected';
+          ytBadge.className = 'session-status';
+        }
+      }
+
+      const igBadge = $('igStatusBadge');
+      if (igBadge) {
+        if (igCookies) {
+          igBadge.textContent = 'Connected ✅';
+          igBadge.className = 'session-status connected';
+        } else {
+          igBadge.textContent = 'Not Connected';
+          igBadge.className = 'session-status';
+        }
+      }
+
+      const ytIn = $('ytCookiesIn');
+      if (ytIn && ytCookies && !ytIn.value) {
+        ytIn.value = ytCookies;
+      }
+
+      const igIn = $('igCookiesIn');
+      if (igIn && igCookies && !igIn.value) {
+        igIn.value = igCookies;
+      }
+    }
+
+    function setupSessionModal() {
+      const openBtn = $('openSessionModal');
+      const closeBtn = $('closeSessionModal');
+      const overlay = $('sessionModalOverlay');
+      const saveYt = $('saveYtSession');
+      const clearYt = $('clearYtSession');
+      const saveIg = $('saveIgSession');
+      const clearIg = $('clearIgSession');
+
+      if (openBtn && overlay) {
+        openBtn.onclick = () => {
+          updateSessionUI();
+          overlay.style.display = 'flex';
+        };
+      }
+      if (closeBtn && overlay) {
+        closeBtn.onclick = () => { overlay.style.display = 'none'; };
+      }
+      if (overlay) {
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.style.display = 'none';
+        };
+      }
+
+      if (saveYt) {
+        saveYt.onclick = () => {
+          const val = ($('ytCookiesIn')?.value || '').trim();
+          if (!val) { toast('Please paste YouTube cookies first', 'e'); return; }
+          localStorage.setItem(YT_SESSION_KEY, val);
+          updateSessionUI();
+          toast('YouTube session saved successfully! Anti-bot restriction unlocked.', 's');
+        };
+      }
+      if (clearYt) {
+        clearYt.onclick = () => {
+          localStorage.removeItem(YT_SESSION_KEY);
+          if ($('ytCookiesIn')) $('ytCookiesIn').value = '';
+          updateSessionUI();
+          toast('YouTube session cleared', 'i');
+        };
+      }
+
+      if (saveIg) {
+        saveIg.onclick = () => {
+          const val = ($('igCookiesIn')?.value || '').trim();
+          if (!val) { toast('Please paste Instagram cookies first', 'e'); return; }
+          localStorage.setItem(IG_SESSION_KEY, val);
+          updateSessionUI();
+          toast('Instagram session saved successfully! High quality reels unlocked.', 's');
+        };
+      }
+      if (clearIg) {
+        clearIg.onclick = () => {
+          localStorage.removeItem(IG_SESSION_KEY);
+          if ($('igCookiesIn')) $('igCookiesIn').value = '';
+          updateSessionUI();
+          toast('Instagram session cleared', 'i');
+        };
+      }
+    }
+
     // ─── Thumbnail UI States ───
     function setThumbState(state) {
       thImg.style.display = 'none';
@@ -192,12 +315,34 @@
     }
 
     function showThumbImage(src) {
-      thImg.src = src;
+      if (!src) {
+        setThumbState('placeholder');
+        return;
+      }
+      thImg.referrerPolicy = 'no-referrer';
+      thImg.crossOrigin = 'anonymous';
+
+      // If direct image fails to load (e.g. 403 Forbidden on Instagram CDN), route through backend image proxy
+      thImg.onerror = function() {
+        console.warn('Direct thumbnail load failed, trying backend proxy:', src);
+        thImg.onerror = function() {
+          setThumbState('placeholder');
+        };
+        thImg.src = `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`;
+      };
+
+      if (src.includes('cdninstagram.com') || src.includes('fbcdn.net')) {
+        thImg.src = `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`;
+      } else {
+        thImg.src = src;
+      }
+
       thImg.style.display = 'block';
       thLd.style.display = 'none';
       thPh.style.display = 'none';
       thErr.style.display = 'none';
     }
+
 
     // ─── Toast ───
     const activeToasts = [];
@@ -262,17 +407,29 @@
       } catch(e) {}
     }
 
+    function renderAdCode(container, code) {
+      if (!container || !code) return;
+      container.innerHTML = code;
+      container.style.display = 'block';
+      container.querySelectorAll('script').forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(attr => {
+          newScript.setAttribute(attr.name, attr.value);
+        });
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+    }
+
     function renderAds(cfg) {
       if (!cfg) return;
       const topBanner = $('adTopBanner');
       if (topBanner && cfg.top_banner && cfg.top_banner.enabled && cfg.top_banner.code) {
-        topBanner.innerHTML = cfg.top_banner.code;
-        topBanner.style.display = 'block';
+        renderAdCode(topBanner, cfg.top_banner.code);
       }
       const bottomBanner = $('adBottomBanner');
       if (bottomBanner && cfg.bottom_banner && cfg.bottom_banner.enabled && cfg.bottom_banner.code) {
-        bottomBanner.innerHTML = cfg.bottom_banner.code;
-        bottomBanner.style.display = 'block';
+        renderAdCode(bottomBanner, cfg.bottom_banner.code);
       }
       const leftBanner = $('adLeftBanner');
       const leftAd = cfg.side_banner_left || null;
@@ -373,14 +530,22 @@
       if (page === 'home') return null;
 
       if (page === 'playlist') {
-        if (!info.isPlaylist) return 'This is a single video link. Use <b>Home</b> or the matching platform tab.';
-        if (info.platform !== 'youtube') return 'Only YouTube playlists are supported. Use the <b>Home</b> tab for other platforms.';
+        if (!info.isPlaylist) {
+          return 'This is a single video link. Use <b>Home</b> or the matching platform tab.';
+        }
+        if (info.platform !== 'youtube') {
+          return 'Only YouTube playlists are supported. Use the <b>Home</b> tab for other platforms.';
+        }
         return null;
       }
 
       if (page === 'youtube') {
-        if (info.isPlaylist) return 'This is a playlist link. Switch to the <b>Playlist</b> tab to download.';
-        if (info.platform !== 'youtube') return `This looks like a ${info.platform} link. Use the <b>${info.platform.charAt(0).toUpperCase() + info.platform.slice(1)}</b> tab or <b>Home</b>.`;
+        if (info.isPlaylist) {
+          return 'This is a playlist link. Switch to the <b>Playlist</b> tab to download.';
+        }
+        if (info.platform !== 'youtube') {
+          return `This looks like a ${info.platform} link. Use the <b>${info.platform.charAt(0).toUpperCase() + info.platform.slice(1)}</b> tab or <b>Home</b>.`;
+        }
         return null;
       }
 
@@ -409,10 +574,11 @@
       prog.classList.remove('vis');
 
       try {
+        const userCookies = getUserCookies(platform.name);
         const resp = await fetch(`${getApiBaseUrl()}/info`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, user_cookies: userCookies })
         });
         
         if (!resp.ok) {
@@ -545,6 +711,8 @@
       setProgress(1, 0, 'Connecting...');
       try {
         const q = audioOnly ? 'mp3_best' : quality;
+        const currentPlatform = platform?.name || detectPlatform(url).name;
+        const userCookies = getUserCookies(currentPlatform);
 
         setProgress(1, 15, 'Checking status...');
 
@@ -582,6 +750,7 @@
             const vidUrl = `https://www.youtube.com/watch?v=${entry.id}`;
             const params = new URLSearchParams({ url: vidUrl, quality: q });
             if (entry.title) params.set('title', entry.title);
+            if (userCookies) params.set('user_cookies', userCookies);
             const dlUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
             setProgress(3, Math.round((i / entries.length) * 70) + 15, `Downloading ${i+1}/${entries.length}...`);
@@ -615,37 +784,74 @@
 
         const params = new URLSearchParams({ url, quality: q });
         if (videoData?.title) params.set('title', videoData.title);
+        if (userCookies) params.set('user_cookies', userCookies);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
+
+        // ── Robust Unified Download Flow (Direct Fetch & Blob Trigger) ──
+        clearToasts();
+        toast('Downloading video stream... Please wait.', 'i', true);
+        dlB.disabled = true;
+        dlB.innerHTML = '<div class="spinner"></div> Downloading...';
+        prog.classList.add('vis');
+        setProgress(2, 35, 'Fetching video stream...');
 
         if (isMobileDevice()) {
           window.location.href = downloadUrl;
           setProgress(4, 100, 'Download started');
-          setTimeout(() => prog.classList.remove('vis'), 1500);
-          toast('Download started.', 's');
+          setTimeout(() => {
+            prog.classList.remove('vis');
+            dlB.disabled = false;
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          }, 3000);
           return;
         }
 
-        setProgress(3, 80, 'Preparing file...');
+        // On desktop: Fetch stream with live progress and trigger blob
+        try {
+          const resp = await fetch(downloadUrl);
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Download request failed on server');
+          }
 
-        toast('Please wait — server is preparing your download. Don\'t leave the page.', 'i', true);
+          setProgress(3, 85, 'Saving video file...');
+          const blob = await resp.blob();
 
-        const resp = await fetch(downloadUrl);
-        if (!resp.ok) {
-          const errData = await resp.json().catch(()=>({}));
-          throw new Error(errData.detail || 'Server refused download');
+          const disp = resp.headers.get('Content-Disposition') || '';
+          const ext = q.startsWith('mp3') ? 'mp3' : (q.startsWith('m4a') ? 'm4a' : 'mp4');
+          let finalFilename = '';
+          const utf8Match = disp.match(/filename\*=UTF-8''([^;\s]+)/i);
+          if (utf8Match) {
+            try { finalFilename = decodeURIComponent(utf8Match[1]); } catch(e){}
+          }
+          if (!finalFilename) {
+            const plainMatch = disp.match(/filename="?([^";]+)"?/i);
+            if (plainMatch) finalFilename = plainMatch[1];
+          }
+          if (!finalFilename || finalFilename === 'video.mp4' || finalFilename === 'video.mp3') {
+            if (videoData?.title && videoData.title !== 'video') {
+              finalFilename = `${videoData.title}.${ext}`;
+            } else {
+              finalFilename = `video_${Date.now()}.${ext}`;
+            }
+          }
+
+          triggerBlob(blob, finalFilename);
+
+          clearToasts();
+          setProgress(4, 100, 'Download complete!');
+          toast('Video downloaded successfully! Saved to your computer.', 's');
+        } catch (fetchErr) {
+          console.warn('Fetch streaming fallback to direct link:', fetchErr);
+          window.location.href = downloadUrl;
+          toast('Download started via browser manager.', 's');
+        } finally {
+          setTimeout(() => {
+            prog.classList.remove('vis');
+            dlB.disabled = false;
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+          }, 2000);
         }
-
-        // Server responded — download is starting
-        clearToasts();
-        setProgress(4, 100, 'Download complete');
-
-        const blob = await resp.blob();
-        const disp = resp.headers.get('Content-Disposition') || '';
-        const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i);
-        const filename = fnMatch ? decodeURIComponent(fnMatch[1]) : 'video.mp4';
-        triggerBlob(blob, filename);
-
-        setTimeout(() => prog.classList.remove('vis'), 1500);
 
       } catch(err) {
         clearToasts();
@@ -655,6 +861,7 @@
         dlB.disabled = false;
       }
     }
+
 
     function triggerBlob(blob, filename) {
       const u = URL.createObjectURL(blob);
@@ -810,5 +1017,8 @@
     // ─── Init ───
     updateBadge();
     loadAds();
+    setupSessionModal();
+    updateSessionUI();
     consumePendingSharedText();
     handleHash();
+

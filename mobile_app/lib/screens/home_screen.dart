@@ -25,6 +25,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialUrl != null && widget.initialUrl != oldWidget.initialUrl && widget.initialUrl!.isNotEmpty) {
+      _urlController.text = widget.initialUrl!;
+      _handleSearch(widget.initialUrl!);
+    }
+  }
+
   Future<void> _handleSearch(String url) async {
     final cleanUrl = url.trim();
     if (cleanUrl.isEmpty) return;

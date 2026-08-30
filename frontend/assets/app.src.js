@@ -183,6 +183,129 @@
       return null;
     }
 
+    // ─── Direct User Sessions (YouTube & Instagram) ───
+    const YT_SESSION_KEY = 'vidgrab_yt_cookies';
+    const IG_SESSION_KEY = 'vidgrab_ig_cookies';
+
+    function getUserCookies(platformName) {
+      if (!platformName) return null;
+      const p = String(platformName).toLowerCase();
+      if (p.includes('youtube')) {
+        return (localStorage.getItem(YT_SESSION_KEY) || '').trim() || null;
+      }
+      if (p.includes('instagram')) {
+        return (localStorage.getItem(IG_SESSION_KEY) || '').trim() || null;
+      }
+      return null;
+    }
+
+    function updateSessionUI() {
+      const ytCookies = (localStorage.getItem(YT_SESSION_KEY) || '').trim();
+      const igCookies = (localStorage.getItem(IG_SESSION_KEY) || '').trim();
+
+      const dot = $('sessionDot');
+      if (dot) {
+        if (ytCookies || igCookies) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
+        }
+      }
+
+      const ytBadge = $('ytStatusBadge');
+      if (ytBadge) {
+        if (ytCookies) {
+          ytBadge.textContent = 'Connected ✅';
+          ytBadge.className = 'session-status connected';
+        } else {
+          ytBadge.textContent = 'Not Connected';
+          ytBadge.className = 'session-status';
+        }
+      }
+
+      const igBadge = $('igStatusBadge');
+      if (igBadge) {
+        if (igCookies) {
+          igBadge.textContent = 'Connected ✅';
+          igBadge.className = 'session-status connected';
+        } else {
+          igBadge.textContent = 'Not Connected';
+          igBadge.className = 'session-status';
+        }
+      }
+
+      const ytIn = $('ytCookiesIn');
+      if (ytIn && ytCookies && !ytIn.value) {
+        ytIn.value = ytCookies;
+      }
+
+      const igIn = $('igCookiesIn');
+      if (igIn && igCookies && !igIn.value) {
+        igIn.value = igCookies;
+      }
+    }
+
+    function setupSessionModal() {
+      const openBtn = $('openSessionModal');
+      const closeBtn = $('closeSessionModal');
+      const overlay = $('sessionModalOverlay');
+      const saveYt = $('saveYtSession');
+      const clearYt = $('clearYtSession');
+      const saveIg = $('saveIgSession');
+      const clearIg = $('clearIgSession');
+
+      if (openBtn && overlay) {
+        openBtn.onclick = () => {
+          updateSessionUI();
+          overlay.style.display = 'flex';
+        };
+      }
+      if (closeBtn && overlay) {
+        closeBtn.onclick = () => { overlay.style.display = 'none'; };
+      }
+      if (overlay) {
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.style.display = 'none';
+        };
+      }
+
+      if (saveYt) {
+        saveYt.onclick = () => {
+          const val = ($('ytCookiesIn')?.value || '').trim();
+          if (!val) { toast('Please paste YouTube cookies first', 'e'); return; }
+          localStorage.setItem(YT_SESSION_KEY, val);
+          updateSessionUI();
+          toast('YouTube session saved successfully! Anti-bot restriction unlocked.', 's');
+        };
+      }
+      if (clearYt) {
+        clearYt.onclick = () => {
+          localStorage.removeItem(YT_SESSION_KEY);
+          if ($('ytCookiesIn')) $('ytCookiesIn').value = '';
+          updateSessionUI();
+          toast('YouTube session cleared', 'i');
+        };
+      }
+
+      if (saveIg) {
+        saveIg.onclick = () => {
+          const val = ($('igCookiesIn')?.value || '').trim();
+          if (!val) { toast('Please paste Instagram cookies first', 'e'); return; }
+          localStorage.setItem(IG_SESSION_KEY, val);
+          updateSessionUI();
+          toast('Instagram session saved successfully! High quality reels unlocked.', 's');
+        };
+      }
+      if (clearIg) {
+        clearIg.onclick = () => {
+          localStorage.removeItem(IG_SESSION_KEY);
+          if ($('igCookiesIn')) $('igCookiesIn').value = '';
+          updateSessionUI();
+          toast('Instagram session cleared', 'i');
+        };
+      }
+    }
+
     // ─── Thumbnail UI States ───
     function setThumbState(state) {
       thImg.style.display = 'none';
@@ -192,12 +315,34 @@
     }
 
     function showThumbImage(src) {
-      thImg.src = src;
+      if (!src) {
+        setThumbState('placeholder');
+        return;
+      }
+      thImg.referrerPolicy = 'no-referrer';
+      thImg.crossOrigin = 'anonymous';
+
+      // If direct image fails to load (e.g. 403 Forbidden on Instagram CDN), route through backend image proxy
+      thImg.onerror = function() {
+        console.warn('Direct thumbnail load failed, trying backend proxy:', src);
+        thImg.onerror = function() {
+          setThumbState('placeholder');
+        };
+        thImg.src = `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`;
+      };
+
+      if (src.includes('cdninstagram.com') || src.includes('fbcdn.net')) {
+        thImg.src = `${getApiBaseUrl()}/api/proxy-image?url=${encodeURIComponent(src)}`;
+      } else {
+        thImg.src = src;
+      }
+
       thImg.style.display = 'block';
       thLd.style.display = 'none';
       thPh.style.display = 'none';
       thErr.style.display = 'none';
     }
+
 
     // ─── Toast ───
     const activeToasts = [];
@@ -429,10 +574,11 @@
       prog.classList.remove('vis');
 
       try {
+        const userCookies = getUserCookies(platform.name);
         const resp = await fetch(`${getApiBaseUrl()}/info`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, user_cookies: userCookies })
         });
         
         if (!resp.ok) {
@@ -565,6 +711,8 @@
       setProgress(1, 0, 'Connecting...');
       try {
         const q = audioOnly ? 'mp3_best' : quality;
+        const currentPlatform = platform?.name || detectPlatform(url).name;
+        const userCookies = getUserCookies(currentPlatform);
 
         setProgress(1, 15, 'Checking status...');
 
@@ -602,6 +750,7 @@
             const vidUrl = `https://www.youtube.com/watch?v=${entry.id}`;
             const params = new URLSearchParams({ url: vidUrl, quality: q });
             if (entry.title) params.set('title', entry.title);
+            if (userCookies) params.set('user_cookies', userCookies);
             const dlUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
             setProgress(3, Math.round((i / entries.length) * 70) + 15, `Downloading ${i+1}/${entries.length}...`);
@@ -635,6 +784,7 @@
 
         const params = new URLSearchParams({ url, quality: q });
         if (videoData?.title) params.set('title', videoData.title);
+        if (userCookies) params.set('user_cookies', userCookies);
         const downloadUrl = `${getApiBaseUrl()}/download-file?${params.toString()}`;
 
         // ── Robust Unified Download Flow (Direct Fetch & Blob Trigger) ──
@@ -651,7 +801,7 @@
           setTimeout(() => {
             prog.classList.remove('vis');
             dlB.disabled = false;
-            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
           }, 3000);
           return;
         }
@@ -699,11 +849,9 @@
           setTimeout(() => {
             prog.classList.remove('vis');
             dlB.disabled = false;
-            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
+            dlB.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Now';
           }, 2000);
         }
-        return;
-        return;
 
       } catch(err) {
         clearToasts();
@@ -713,6 +861,7 @@
         dlB.disabled = false;
       }
     }
+
 
     function triggerBlob(blob, filename) {
       const u = URL.createObjectURL(blob);
@@ -868,5 +1017,8 @@
     // ─── Init ───
     updateBadge();
     loadAds();
+    setupSessionModal();
+    updateSessionUI();
     consumePendingSharedText();
     handleHash();
+

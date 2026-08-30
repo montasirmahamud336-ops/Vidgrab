@@ -193,13 +193,17 @@ class DownloadProvider extends ChangeNotifier {
     _activeDownloads.insert(0, item);
     notifyListeners();
 
-    _showStartNotification(item.title);
+    _showStartNotification(item);
     _runDownload(item);
   }
 
   Future<void> _runDownload(DownloadItem item) async {
+    final notificationId = item.id.hashCode;
+    int lastNotifTime = 0;
+    int lastNotifPct = -1;
+
     try {
-      final downloadUrl = ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
+      final downloadUrl = await ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
       final client = http.Client();
       final response = await client.send(http.Request('GET', Uri.parse(downloadUrl)));
 
@@ -253,6 +257,15 @@ class DownloadProvider extends ChangeNotifier {
           item.progress = (received / item.totalBytes).clamp(0.0, 1.0);
         }
         notifyListeners();
+
+        // Throttle progress notification updates (every 500ms or 3% increase)
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final currentPct = (item.progress * 100).toInt();
+        if (now - lastNotifTime > 500 || currentPct >= lastNotifPct + 3) {
+          lastNotifTime = now;
+          lastNotifPct = currentPct;
+          _updateProgressNotification(item);
+        }
       });
 
       await sink.close();
@@ -265,6 +278,8 @@ class DownloadProvider extends ChangeNotifier {
       _completedDownloads.insert(0, item);
       _savePersistedDownloads();
       notifyListeners();
+
+      await _notificationsPlugin.cancel(notificationId);
       _showCompletedNotification(item.title);
     } catch (e) {
       item.status = 'failed';
@@ -274,6 +289,8 @@ class DownloadProvider extends ChangeNotifier {
         _failedDownloads.insert(0, item);
       }
       notifyListeners();
+
+      await _notificationsPlugin.cancel(notificationId);
       _showFailedNotification(item.title, item.errorMessage ?? 'Download failed');
     }
   }
@@ -293,19 +310,50 @@ class DownloadProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _showStartNotification(String title) async {
+  void _showStartNotification(DownloadItem item) async {
     const androidDetails = AndroidNotificationDetails(
       'vidgrab_downloads',
       'VidGrab Downloads',
       channelDescription: 'VidGrab Background Download Notifications',
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      importance: Importance.low,
+      priority: Priority.low,
+      showProgress: true,
+      maxProgress: 100,
+      progress: 0,
+      ongoing: true,
+      onlyAlertOnce: true,
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
-      1,
-      'VidGrab Download Started',
-      title,
+      item.id.hashCode,
+      'VidGrab: Starting Download',
+      item.title,
+      notificationDetails,
+    );
+  }
+
+  void _updateProgressNotification(DownloadItem item) async {
+    final pct = (item.progress * 100).toInt();
+    final downloadedMB = (item.bytesDownloaded / (1024 * 1024)).toStringAsFixed(1);
+    final totalMB = item.totalBytes > 0 ? '${(item.totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB' : '...';
+
+    final androidDetails = AndroidNotificationDetails(
+      'vidgrab_downloads',
+      'VidGrab Downloads',
+      channelDescription: 'VidGrab Background Download Progress',
+      importance: Importance.low,
+      priority: Priority.low,
+      showProgress: true,
+      maxProgress: 100,
+      progress: pct,
+      onlyAlertOnce: true,
+      ongoing: true,
+    );
+    final notificationDetails = NotificationDetails(android: androidDetails);
+    await _notificationsPlugin.show(
+      item.id.hashCode,
+      'Downloading $pct% • ${item.title}',
+      '$downloadedMB MB / $totalMB',
       notificationDetails,
     );
   }
@@ -320,7 +368,7 @@ class DownloadProvider extends ChangeNotifier {
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
-      3,
+      DateTime.now().millisecondsSinceEpoch % 100000,
       'Download Failed',
       '$title: $error',
       notificationDetails,
@@ -337,10 +385,11 @@ class DownloadProvider extends ChangeNotifier {
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
-      2,
-      'Download Complete!',
+      DateTime.now().millisecondsSinceEpoch % 100000,
+      'Download Complete! 🎉',
       title,
       notificationDetails,
     );
   }
 }
+

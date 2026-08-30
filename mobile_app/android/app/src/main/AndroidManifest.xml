@@ -45,6 +45,13 @@
                 <data android:scheme="http" />
                 <data android:scheme="https" />
             </intent-filter>
+
+            <!-- Direct Share Sheet Receiver on Main Activity -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <!-- Transparent In-Screen Overlay Share Intent Activity -->
