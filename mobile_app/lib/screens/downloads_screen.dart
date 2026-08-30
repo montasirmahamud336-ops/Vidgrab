@@ -59,7 +59,7 @@ class DownloadsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF18181B),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

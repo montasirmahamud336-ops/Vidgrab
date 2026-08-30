@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'api_service.dart';
 
 class DownloadItem {
@@ -203,21 +204,6 @@ class DownloadProvider extends ChangeNotifier {
     int lastNotifPct = -1;
 
     try {
-      final downloadUrl = await ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
-      final client = http.Client();
-      final response = await client.send(http.Request('GET', Uri.parse(downloadUrl)));
-
-      if (response.statusCode != 200) {
-        final errText = await response.stream.bytesToString();
-        try {
-          final decoded = jsonDecode(errText);
-          final msg = decoded['detail'] ?? errText;
-          throw Exception(msg);
-        } catch (_) {
-          throw Exception(errText.isNotEmpty ? errText : 'Server error ${response.statusCode}');
-        }
-      }
-
       Directory dir;
       if (Platform.isAndroid) {
         try {
@@ -244,31 +230,106 @@ class DownloadProvider extends ChangeNotifier {
       final fileName = '${safeTitle}_${item.quality}.${item.ext}';
       final file = File('${dir.path}/$fileName');
 
-      item.totalBytes = response.contentLength ?? 0;
-      int received = 0;
+      final lowerUrl = item.videoUrl.toLowerCase();
+      bool downloadedDirectly = false;
 
-      final sink = file.openWrite();
-      await response.stream.forEach((chunk) {
-        received += chunk.length;
-        sink.add(chunk);
+      // ── 1. ON-DEVICE YOUTUBE STREAMING (100% immune to datacenter/VPS IP bot checks) ──
+      if (lowerUrl.contains('youtube.com') || lowerUrl.contains('youtu.be')) {
+        final yt = YoutubeExplode();
+        try {
+          final video = await yt.videos.get(item.videoUrl).timeout(const Duration(seconds: 15));
+          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
 
-        item.bytesDownloaded = received;
-        if (item.totalBytes > 0) {
-          item.progress = (received / item.totalBytes).clamp(0.0, 1.0);
+          StreamInfo? streamInfo;
+          if (item.quality.startsWith('mp3') || item.quality.startsWith('m4a')) {
+            streamInfo = manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null;
+          } else if (item.quality == '360') {
+            final matching = manifest.muxed.where((s) => s.qualityLabel.contains('360'));
+            streamInfo = matching.isNotEmpty ? matching.first : (manifest.muxed.isNotEmpty ? manifest.muxed.first : null);
+          } else if (item.quality == '720') {
+            final matching = manifest.muxed.where((s) => s.qualityLabel.contains('720'));
+            streamInfo = matching.isNotEmpty ? matching.first : (manifest.muxed.isNotEmpty ? manifest.muxed.withHighestBitrate() : null);
+          } else {
+            streamInfo = manifest.muxed.isNotEmpty ? manifest.muxed.withHighestBitrate() : (manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null);
+          }
+
+          if (streamInfo != null) {
+            item.totalBytes = streamInfo.size.totalBytes;
+            int received = 0;
+            final stream = yt.videos.streamsClient.get(streamInfo);
+            final sink = file.openWrite();
+
+            await for (final chunk in stream) {
+              received += chunk.length;
+              sink.add(chunk);
+
+              item.bytesDownloaded = received;
+              if (item.totalBytes > 0) {
+                item.progress = (received / item.totalBytes).clamp(0.0, 1.0);
+              }
+              notifyListeners();
+
+              final now = DateTime.now().millisecondsSinceEpoch;
+              final currentPct = (item.progress * 100).toInt();
+              if (now - lastNotifTime > 500 || currentPct >= lastNotifPct + 3) {
+                lastNotifTime = now;
+                lastNotifPct = currentPct;
+                _updateProgressNotification(item);
+              }
+            }
+
+            await sink.close();
+            downloadedDirectly = true;
+          }
+        } catch (_) {
+          // If direct on-device fails, fallback to VPS endpoint below
+        } finally {
+          yt.close();
         }
-        notifyListeners();
+      }
 
-        // Throttle progress notification updates (every 500ms or 3% increase)
-        final now = DateTime.now().millisecondsSinceEpoch;
-        final currentPct = (item.progress * 100).toInt();
-        if (now - lastNotifTime > 500 || currentPct >= lastNotifPct + 3) {
-          lastNotifTime = now;
-          lastNotifPct = currentPct;
-          _updateProgressNotification(item);
+      // ── 2. VPS BACKEND STREAMING (for Instagram, TikTok, Facebook or fallback) ──
+      if (!downloadedDirectly) {
+        final downloadUrl = await ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
+        final client = http.Client();
+        final response = await client.send(http.Request('GET', Uri.parse(downloadUrl)));
+
+        if (response.statusCode != 200) {
+          final errText = await response.stream.bytesToString();
+          try {
+            final decoded = jsonDecode(errText);
+            final msg = decoded['detail'] ?? errText;
+            throw Exception(msg);
+          } catch (_) {
+            throw Exception(errText.isNotEmpty ? errText : 'Server error ${response.statusCode}');
+          }
         }
-      });
 
-      await sink.close();
+        item.totalBytes = response.contentLength ?? 0;
+        int received = 0;
+
+        final sink = file.openWrite();
+        await response.stream.forEach((chunk) {
+          received += chunk.length;
+          sink.add(chunk);
+
+          item.bytesDownloaded = received;
+          if (item.totalBytes > 0) {
+            item.progress = (received / item.totalBytes).clamp(0.0, 1.0);
+          }
+          notifyListeners();
+
+          final now = DateTime.now().millisecondsSinceEpoch;
+          final currentPct = (item.progress * 100).toInt();
+          if (now - lastNotifTime > 500 || currentPct >= lastNotifPct + 3) {
+            lastNotifTime = now;
+            lastNotifPct = currentPct;
+            _updateProgressNotification(item);
+          }
+        });
+
+        await sink.close();
+      }
 
       item.status = 'completed';
       item.filePath = file.path;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class ApiService {
   // Private VPS backend endpoint - completely hidden from UI
@@ -96,6 +97,48 @@ class ApiService {
 
   // ─── Fetch video info ───
   static Future<Map<String, dynamic>> getVideoInfo(String videoUrl) async {
+    final lower = videoUrl.toLowerCase();
+
+    // 1. Direct On-Device YouTube Engine (100% immune to VPS datacenter blocks & bot challenges)
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      try {
+        final yt = YoutubeExplode();
+        try {
+          final video = await yt.videos.get(videoUrl).timeout(const Duration(seconds: 10));
+          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 10));
+
+          final qualities = <Map<String, String>>[];
+          final has720 = manifest.muxed.any((s) => s.qualityLabel.contains('720'));
+          final has360 = manifest.muxed.any((s) => s.qualityLabel.contains('360'));
+
+          qualities.add({'label': 'Best Quality', 'value': 'best'});
+          if (has720) qualities.add({'label': '720p HD', 'value': '720'});
+          if (has360) qualities.add({'label': '360p SD', 'value': '360'});
+
+          final audioQualities = [
+            {'label': 'MP3 (Best Quality)', 'value': 'mp3_best'},
+            {'label': 'M4A (Best Quality)', 'value': 'm4a_best'},
+          ];
+
+          return {
+            'is_playlist': false,
+            'title': video.title,
+            'uploader': video.author,
+            'thumbnail': video.thumbnails.highResUrl,
+            'duration': video.duration?.inSeconds,
+            'video_qualities': qualities,
+            'audio_qualities': audioQualities,
+            '_is_direct_yt': true,
+          };
+        } finally {
+          yt.close();
+        }
+      } catch (_) {
+        // Fallback to VPS backend if on-device fails
+      }
+    }
+
+    // 2. VPS Backend Engine (for Instagram, TikTok, Facebook, or fallback)
     await loadBaseUrl();
     try {
       final endpoint = Uri.parse('$_baseUrl/info');
