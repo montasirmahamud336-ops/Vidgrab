@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'services/download_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/downloads_screen.dart';
@@ -52,59 +50,11 @@ class MainNavigationWrapper extends StatefulWidget {
 
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
-  String? _sharedUrl;
-  StreamSubscription? _intentSubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _initShareIntent();
-  }
-
-  void _initShareIntent() {
-    // Listen for shared links/text (Instagram, YouTube, FB, TikTok)
-    _intentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
-      for (final file in value) {
-        if (file.path.isNotEmpty) {
-          _processSharedText(file.path);
-        }
-      }
-    }, onError: (_) {});
-
-    // Initial shared links when app opened from closed state
-    ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
-      for (final file in value) {
-        if (file.path.isNotEmpty) {
-          _processSharedText(file.path);
-        }
-      }
-      ReceiveSharingIntent.reset();
-    });
-  }
-
-  void _processSharedText(String text) {
-    final urlRegExp = RegExp(r'https?://[^\s]+');
-    final match = urlRegExp.firstMatch(text);
-    if (match != null) {
-      final url = match.group(0)!;
-      setState(() {
-        _sharedUrl = url;
-        _currentIndex = 0; // Switch to Download HomeScreen which handles single bottom sheet
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _intentSubscription?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-
     final screens = [
-      HomeScreen(initialUrl: _sharedUrl),
+      const HomeScreen(),
       const DownloadsScreen(),
       const SettingsScreen(),
     ];
@@ -116,7 +66,12 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() => _currentIndex = index);
+          if (index == 1) {
+            Provider.of<DownloadProvider>(context, listen: false).reloadDownloads();
+          }
+        },
         backgroundColor: const Color(0xFF18181B),
         selectedItemColor: const Color(0xFFFACC15),
         unselectedItemColor: Colors.grey,
@@ -130,3 +85,4 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     );
   }
 }
+

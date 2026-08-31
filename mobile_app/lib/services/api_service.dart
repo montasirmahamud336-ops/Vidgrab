@@ -105,20 +105,17 @@ class ApiService {
       try {
         final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(videoUrl);
         final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : videoUrl.trim();
-        final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 15));
-        final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
+        
+        // Fast direct metadata extraction
+        final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 8));
 
-        final qualities = <Map<String, String>>[];
-        final has1080 = manifest.video.any((s) => s.qualityLabel.contains('1080'));
-        final has720 = manifest.video.any((s) => s.qualityLabel.contains('720'));
-        final has480 = manifest.video.any((s) => s.qualityLabel.contains('480'));
-        final has360 = manifest.video.any((s) => s.qualityLabel.contains('360'));
-
-        qualities.add({'label': 'Best Quality', 'value': 'best'});
-        if (has1080) qualities.add({'label': '1080p Full HD', 'value': '1080'});
-        if (has720) qualities.add({'label': '720p HD', 'value': '720'});
-        if (has480) qualities.add({'label': '480p SD', 'value': '480'});
-        if (has360) qualities.add({'label': '360p SD', 'value': '360'});
+        final qualities = <Map<String, String>>[
+          {'label': 'Best Quality (HD)', 'value': 'best'},
+          {'label': '1080p Full HD', 'value': '1080'},
+          {'label': '720p HD', 'value': '720'},
+          {'label': '480p SD', 'value': '480'},
+          {'label': '360p SD', 'value': '360'},
+        ];
 
         final audioQualities = [
           {'label': 'MP3 (High Quality)', 'value': 'mp3_best'},

@@ -7,8 +7,21 @@ import '../services/download_service.dart';
 import '../services/api_service.dart';
 import '../services/native_service.dart';
 
-class DownloadsScreen extends StatelessWidget {
+class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends State<DownloadsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<DownloadProvider>(context, listen: false).reloadDownloads();
+    });
+  }
 
   String _getMimeType(DownloadItem item) {
     final lowerExt = item.ext.toLowerCase();
@@ -315,75 +328,82 @@ class DownloadsScreen extends StatelessWidget {
         title: const Text('My Downloads', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // Storage Location Card
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF18181B),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.folder_special_rounded, color: Color(0xFFFACC15), size: 24),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Download Storage Folder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      Text(provider.customStorageDir, style: const TextStyle(color: Colors.grey, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-                InkWell(
-                  onTap: () => _showEditStorageDialog(context),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFACC15).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.4)),
-                    ),
-                    child: const Text('Change', style: TextStyle(color: Color(0xFFFACC15), fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (provider.activeDownloads.isNotEmpty) ...[
-            Text('Downloading (${provider.activeDownloads.length})', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            ...provider.activeDownloads.map((item) => _buildActiveTile(item)),
-            const SizedBox(height: 24),
-          ],
-
-          if (provider.failedDownloads.isNotEmpty) ...[
-            Text('Failed Downloads (${provider.failedDownloads.length})', style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            ...provider.failedDownloads.map((item) => _buildFailedTile(context, item)),
-            const SizedBox(height: 24),
-          ],
-
-          Text('Downloaded (${provider.completedDownloads.length})', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-
-          if (provider.completedDownloads.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
-                child: Text('No downloaded files yet', style: TextStyle(color: Colors.grey)),
+      body: RefreshIndicator(
+        color: const Color(0xFFFACC15),
+        backgroundColor: const Color(0xFF18181B),
+        onRefresh: () async {
+          await Provider.of<DownloadProvider>(context, listen: false).reloadDownloads();
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            // Storage Location Card
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF18181B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.2)),
               ),
-            )
-          else
-            ...provider.completedDownloads.map((item) => _buildCompletedTile(context, item)),
-        ],
+              child: Row(
+                children: [
+                  const Icon(Icons.folder_special_rounded, color: Color(0xFFFACC15), size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Download Storage Folder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(provider.customStorageDir, style: const TextStyle(color: Colors.grey, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => _showEditStorageDialog(context),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFACC15).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.4)),
+                      ),
+                      child: const Text('Change', style: TextStyle(color: Color(0xFFFACC15), fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            if (provider.activeDownloads.isNotEmpty) ...[
+              Text('Downloading (${provider.activeDownloads.length})', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...provider.activeDownloads.map((item) => _buildActiveTile(item)),
+              const SizedBox(height: 24),
+            ],
+
+            if (provider.failedDownloads.isNotEmpty) ...[
+              Text('Failed Downloads (${provider.failedDownloads.length})', style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...provider.failedDownloads.map((item) => _buildFailedTile(context, item)),
+              const SizedBox(height: 24),
+            ],
+
+            Text('Downloaded (${provider.completedDownloads.length})', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+
+            if (provider.completedDownloads.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Text('No downloaded files yet (Pull down to refresh)', style: TextStyle(color: Colors.grey)),
+                ),
+              )
+            else
+              ...provider.completedDownloads.map((item) => _buildCompletedTile(context, item)),
+          ],
+        ),
       ),
     );
   }

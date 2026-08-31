@@ -6,9 +6,7 @@ import '../widgets/download_bottom_sheet.dart';
 import '../widgets/update_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String? initialUrl;
-
-  const HomeScreen({Key? key, this.initialUrl}) : super(key: key);
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -22,10 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkForUpdates();
-    if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
-      _urlController.text = widget.initialUrl!;
-      _handleSearch(widget.initialUrl!);
-    }
   }
 
   void _checkForUpdates() async {
@@ -34,15 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final updateInfo = await UpdateService.checkUpdate();
     if (updateInfo != null && mounted) {
       UpdateDialog.show(context, updateInfo);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant HomeScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.initialUrl != null && widget.initialUrl != oldWidget.initialUrl && widget.initialUrl!.isNotEmpty) {
-      _urlController.text = widget.initialUrl!;
-      _handleSearch(widget.initialUrl!);
     }
   }
 

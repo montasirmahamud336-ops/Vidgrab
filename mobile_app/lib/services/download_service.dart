@@ -150,9 +150,15 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reloadDownloads() async {
+    await _loadStorageSettings();
+    await _loadPersistedDownloads();
+  }
+
   Future<void> _loadPersistedDownloads() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
       final String? savedJson = prefs.getString('vidgrab_completed_downloads');
       if (savedJson != null) {
         final List<dynamic> decoded = jsonDecode(savedJson);
@@ -181,42 +187,47 @@ class DownloadProvider extends ChangeNotifier {
 
   Future<void> _scanDownloadDirectory() async {
     try {
-      Directory? dir;
+      final dirsToScan = <Directory>[];
       if (Platform.isAndroid) {
         final targetDir = Directory(_customStorageDir);
-        if (await targetDir.exists()) dir = targetDir;
+        if (await targetDir.exists()) dirsToScan.add(targetDir);
         final defaultDir = Directory('/storage/emulated/0/Download/VidGrab');
-        if (await defaultDir.exists()) dir ??= defaultDir;
+        if (await defaultDir.exists() && defaultDir.path != targetDir.path) dirsToScan.add(defaultDir);
+        final publicDownloadDir = Directory('/storage/emulated/0/Download');
+        if (await publicDownloadDir.exists() && publicDownloadDir.path != targetDir.path) dirsToScan.add(publicDownloadDir);
       }
-      dir ??= await getExternalStorageDirectory();
+      final extDir = await getExternalStorageDirectory();
+      if (extDir != null && await extDir.exists()) dirsToScan.add(extDir);
 
-      if (dir != null && await dir.exists()) {
-        final entities = dir.listSync();
-        for (var entity in entities) {
-          if (entity is File) {
-            final path = entity.path;
-            final basename = path.split(Platform.pathSeparator).last;
-            final isAlreadyListed = _completedDownloads.any((d) => d.filePath == path);
+      for (var dir in dirsToScan) {
+        try {
+          final entities = dir.listSync();
+          for (var entity in entities) {
+            if (entity is File) {
+              final path = entity.path;
+              final basename = path.split(Platform.pathSeparator).last;
+              final isAlreadyListed = _completedDownloads.any((d) => d.filePath == path);
 
-            if (!isAlreadyListed && (basename.endsWith('.mp4') || basename.endsWith('.mp3') || basename.endsWith('.m4a'))) {
-              final ext = basename.split('.').last;
-              final title = basename.replaceAll(RegExp(r'\.(mp4|mp3|m4a)$'), '').replaceAll('_', ' ');
-              _completedDownloads.add(
-                DownloadItem(
-                  id: entity.statSync().modified.millisecondsSinceEpoch.toString(),
-                  title: title,
-                  videoUrl: '',
-                  quality: ext == 'mp3' ? 'mp3' : 'HD',
-                  ext: ext,
-                  thumbnail: '',
-                  status: 'completed',
-                  filePath: path,
-                  progress: 1.0,
-                ),
-              );
+              if (!isAlreadyListed && (basename.endsWith('.mp4') || basename.endsWith('.mp3') || basename.endsWith('.m4a') || basename.endsWith('.webm') || basename.endsWith('.mkv'))) {
+                final ext = basename.split('.').last;
+                final title = basename.replaceAll(RegExp(r'\.(mp4|mp3|m4a|webm|mkv)$'), '').replaceAll('_', ' ');
+                _completedDownloads.add(
+                  DownloadItem(
+                    id: entity.statSync().modified.millisecondsSinceEpoch.toString(),
+                    title: title,
+                    videoUrl: '',
+                    quality: ext == 'mp3' ? 'mp3' : 'HD',
+                    ext: ext,
+                    thumbnail: '',
+                    status: 'completed',
+                    filePath: path,
+                    progress: 1.0,
+                  ),
+                );
+              }
             }
           }
-        }
+        } catch (_) {}
       }
     } catch (_) {}
   }
