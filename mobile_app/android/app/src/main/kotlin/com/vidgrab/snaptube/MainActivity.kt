@@ -69,6 +69,30 @@ class MainActivity: FlutterActivity() {
                         result.error("ERROR", e.localizedMessage, null)
                     }
                 }
+                "installApk" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val file = File(filePath)
+                            val apkUri: Uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.customfileprovider",
+                                file
+                            )
+                            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(installIntent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("INSTALL_ERROR", e.localizedMessage, null)
+                        }
+                    } else {
+                        result.error("INVALID_PATH", "APK path is null", null)
+                    }
+                }
                 "finishActivity" -> {
                     activity.finish()
                     result.success(true)

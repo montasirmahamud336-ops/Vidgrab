@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/update_service.dart';
 import '../widgets/download_bottom_sheet.dart';
+import '../widgets/update_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? initialUrl;
@@ -19,9 +21,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _checkForUpdates();
     if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
       _urlController.text = widget.initialUrl!;
       _handleSearch(widget.initialUrl!);
+    }
+  }
+
+  void _checkForUpdates() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    final updateInfo = await UpdateService.checkUpdate();
+    if (updateInfo != null && mounted) {
+      UpdateDialog.show(context, updateInfo);
     }
   }
 

@@ -1792,10 +1792,38 @@ def _format_time_ago(past: datetime, now: datetime) -> str:
 @app.delete("/api/admin/downloads")
 def admin_clear_downloads(credentials: HTTPBasicCredentials = Depends(verify_admin)):
     """Clear all download history."""
-    save_download_log([])
-    return {"status": "cleared", "message": "Download history cleared"}
+@app.get("/api/app-version")
+def get_app_version():
+    """Returns the latest mobile app version, changelog, and force update requirements."""
+    return {
+        "latest_version": "3.0.0",
+        "version_code": 300,
+        "min_version_code": 300,
+        "force_update": False,
+        "changelog": "• In-App auto updater with zero data loss\n• Snaptube-like transparent share overlay on YouTube/Instagram\n• Direct File Manager & Gallery saving\n• On-device YouTube engine",
+        "apk_url": "/download-apk",
+        "release_date": "2026-08-31"
+    }
 
 
+@app.get("/download-apk")
+def download_latest_apk():
+    """Serves the latest release APK file for in-app updates."""
+    possible_paths = [
+        os.path.join(BASE_DIR, "VidGrab-v3.0.0-release.apk"),
+        os.path.join(BASE_DIR, "VidGrab-latest.apk"),
+        "/root/vidgrab_backend/VidGrab-v3.0.0-release.apk",
+        "/root/vidgrab_backend/VidGrab-latest.apk",
+        os.path.join(BASE_DIR, "mobile_app", "build", "app", "outputs", "flutter-apk", "app-release.apk"),
+    ]
+    for p in possible_paths:
+        if os.path.isfile(p):
+            return FileResponse(
+                p,
+                media_type="application/vnd.android.package-archive",
+                filename="VidGrab-latest.apk"
+            )
+    raise HTTPException(status_code=404, detail="APK update binary not found on server")
 
 
 # Mount Next.js admin static export (built via `npm run build`)

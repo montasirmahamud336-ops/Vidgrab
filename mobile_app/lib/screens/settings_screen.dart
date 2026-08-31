@@ -3,6 +3,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/download_service.dart';
+import '../services/update_service.dart';
+import '../widgets/update_dialog.dart';
 import 'login_webview_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -210,84 +212,117 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
 
+  void _checkManualUpdates() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)),
+            SizedBox(width: 12),
+            Text('Checking for new updates...'),
+          ],
+        ),
+        backgroundColor: Color(0xFFFACC15),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    final info = await UpdateService.checkUpdate();
+    if (!mounted) return;
+
+    if (info != null) {
+      UpdateDialog.show(context, info);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are using the latest version of VidGrab (v3.0.0)!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
       appBar: AppBar(
         backgroundColor: const Color(0xFF18181B),
-        title: const Text('Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 0,
+        title: const Text(
+          'Settings & Accounts',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+        ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         children: [
-          // ── Account Connections Section ──
-          const Text('Account Connections (Anti-Restriction)', style: TextStyle(color: Color(0xFFFACC15), fontSize: 13, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
+          // ── Account Connections for Bot Bypass ──
+          const Text(
+            'Account Connections',
+            style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Connect your personal accounts to download private, restricted, or bot-checked videos with 100% success.',
+            style: TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
 
-          // YouTube Card
           _buildConnectionCard(
-            platformName: 'YouTube / Google',
-            icon: Icons.play_circle_fill,
-            brandColor: const Color(0xFFFF0000),
+            platformName: 'Google / YouTube',
+            icon: Icons.play_arrow,
+            brandColor: Colors.redAccent,
             isConnected: _isYtConnected,
-            description: 'Sign in with Google to bypass YouTube bot restrictions & download HD/4K videos smoothly.',
-            buttonText: _isYtConnected ? 'Reconnect with Google' : 'Continue with Google',
+            description: 'Bypasses YouTube bot challenges and enables 1080p/4K audio downloads.',
+            buttonText: _isYtConnected ? 'Re-authenticate Google' : 'Sign in with Google',
             onConnect: _openGoogleLogin,
             onDisconnect: () async {
               await ApiService.setYtCookies(null);
               _loadSettings();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Google account disconnected'), backgroundColor: Colors.grey),
-                );
-              }
             },
           ),
-          const SizedBox(height: 14),
 
-          // Instagram Card
+          const SizedBox(height: 12),
+
           _buildConnectionCard(
             platformName: 'Instagram',
             icon: Icons.camera_alt,
-            brandColor: const Color(0xFFE1306C),
+            brandColor: Colors.pinkAccent,
             isConnected: _isIgConnected,
-            description: 'Sign in to Instagram to unlock full HD downloads and access private or restricted reels.',
-            buttonText: _isIgConnected ? 'Reconnect Instagram' : 'Login with Instagram',
+            description: 'Enables downloading private reels, stories, and login-only posts.',
+            buttonText: _isIgConnected ? 'Re-authenticate Instagram' : 'Sign in with Instagram',
             onConnect: _openInstagramLogin,
             onDisconnect: () async {
               await ApiService.setIgCookies(null);
               _loadSettings();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Instagram account disconnected'), backgroundColor: Colors.grey),
-                );
-              }
             },
           ),
 
           const SizedBox(height: 24),
 
           // ── Storage & Maintenance ──
-          const Text('Storage & Maintenance', style: TextStyle(color: Color(0xFFFACC15), fontSize: 13, fontWeight: FontWeight.bold)),
+          const Text(
+            'Storage & Maintenance',
+            style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
 
-          _buildSimpleTile(
-            icon: Icons.folder,
-            iconColor: Colors.amber,
-            title: 'Download Storage Directory',
-            subtitle: Provider.of<DownloadProvider>(context).customStorageDir,
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFACC15).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFFACC15).withValues(alpha: 0.4)),
-              ),
-              child: const Text('Edit', style: TextStyle(color: Color(0xFFFACC15), fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-            onTap: () => _showEditStorageDialog(context),
+          Consumer<DownloadProvider>(
+            builder: (context, provider, child) {
+              return _buildSimpleTile(
+                icon: Icons.folder,
+                iconColor: const Color(0xFFFACC15),
+                title: 'Download Storage Directory',
+                subtitle: provider.customStorageDir,
+                trailing: TextButton(
+                  onPressed: () => _showEditStorageDialog(context),
+                  child: const Text('Edit', style: TextStyle(color: Color(0xFFFACC15), fontWeight: FontWeight.bold)),
+                ),
+                onTap: () => _showEditStorageDialog(context),
+              );
+            },
           ),
 
           _buildSimpleTile(
@@ -301,15 +336,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
-          // ── App Info ──
-          const Text('About', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+          // ── App Info & Updates ──
+          const Text('App Updates & About', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
+
+          _buildSimpleTile(
+            icon: Icons.system_update,
+            iconColor: const Color(0xFFFACC15),
+            title: 'Check for Updates',
+            subtitle: 'Version 3.0.0 • Tap to check for newer releases',
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: _checkManualUpdates,
+          ),
 
           _buildSimpleTile(
             icon: Icons.info_outline,
             iconColor: Colors.white70,
-            title: 'VidGrab Downloader',
-            subtitle: 'Version 3.0.0 (Official Release)',
+            title: 'About VidGrab Downloader',
+            subtitle: 'Official Zero-Data-Loss Build',
             trailing: const Icon(Icons.verified, color: Color(0xFFFACC15), size: 20),
             onTap: () {
               showAboutDialog(
@@ -319,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 applicationLegalese: '© 2026 VidGrab by DrawnDimension',
                 children: const [
                   SizedBox(height: 10),
-                  Text('VidGrab provides fast, private, and high-quality video downloading across YouTube, Instagram, Facebook, and TikTok with zero bot interruptions.'),
+                  Text('VidGrab provides fast, private, and high-quality video downloading across YouTube, Instagram, Facebook, and TikTok with zero bot interruptions and in-app updates.'),
                 ],
               );
             },

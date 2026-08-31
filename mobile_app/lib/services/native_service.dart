@@ -36,6 +36,19 @@ class NativeService {
     }
   }
 
+  /// Triggers Android native package installer to install or update the APK with 0% data loss
+  static Future<bool> installApk(String filePath) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('installApk', {
+        'filePath': filePath,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Closes the current activity (for transparent share overlay)
   static Future<void> finishActivity() async {
     if (!Platform.isAndroid) return;
@@ -44,4 +57,5 @@ class NativeService {
     } catch (_) {}
   }
 }
+
 
