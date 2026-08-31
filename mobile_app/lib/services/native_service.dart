@@ -24,4 +24,24 @@ class NativeService {
       });
     } catch (_) {}
   }
+
+  /// Gets the real public downloads directory /storage/emulated/0/Download/VidGrab
+  static Future<String?> getPublicDownloadsPath() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final path = await _channel.invokeMethod<String>('getPublicDownloadsPath');
+      return path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Closes the current activity (for transparent share overlay)
+  static Future<void> finishActivity() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('finishActivity');
+    } catch (_) {}
+  }
 }
+

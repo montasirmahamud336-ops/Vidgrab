@@ -57,6 +57,22 @@ class MainActivity: FlutterActivity() {
                         result.error("INVALID_PATH", "File path is null", null)
                     }
                 }
+                "getPublicDownloadsPath" -> {
+                    try {
+                        val downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                        val vidgrabDir = File(downloadDir, "VidGrab")
+                        if (!vidgrabDir.exists()) {
+                            vidgrabDir.mkdirs()
+                        }
+                        result.success(vidgrabDir.absolutePath)
+                    } catch (e: Exception) {
+                        result.error("ERROR", e.localizedMessage, null)
+                    }
+                }
+                "finishActivity" -> {
+                    activity.finish()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }

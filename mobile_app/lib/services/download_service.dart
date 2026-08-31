@@ -124,8 +124,13 @@ class DownloadProvider extends ChangeNotifier {
       final saved = prefs.getString('vidgrab_custom_storage_dir');
       if (saved != null && saved.trim().isNotEmpty) {
         _customStorageDir = saved.trim();
-        notifyListeners();
+      } else if (Platform.isAndroid) {
+        final nativePath = await NativeService.getPublicDownloadsPath();
+        if (nativePath != null && nativePath.isNotEmpty) {
+          _customStorageDir = nativePath;
+        }
       }
+      notifyListeners();
     } catch (_) {}
   }
 
@@ -178,8 +183,10 @@ class DownloadProvider extends ChangeNotifier {
     try {
       Directory? dir;
       if (Platform.isAndroid) {
-        final externalDir = Directory('/storage/emulated/0/Download/VidGrab');
-        if (await externalDir.exists()) dir = externalDir;
+        final targetDir = Directory(_customStorageDir);
+        if (await targetDir.exists()) dir = targetDir;
+        final defaultDir = Directory('/storage/emulated/0/Download/VidGrab');
+        if (await defaultDir.exists()) dir ??= defaultDir;
       }
       dir ??= await getExternalStorageDirectory();
 
@@ -239,6 +246,9 @@ class DownloadProvider extends ChangeNotifier {
       try {
         await Permission.storage.request();
         await Permission.notification.request();
+        if (await Permission.manageExternalStorage.isGranted == false) {
+          await Permission.manageExternalStorage.request();
+        }
       } catch (_) {}
     }
 
@@ -275,20 +285,31 @@ class DownloadProvider extends ChangeNotifier {
           dir = targetDir;
         } catch (_) {
           try {
-            final fallbackDir = Directory('/storage/emulated/0/Download/VidGrab');
-            if (!await fallbackDir.exists()) {
-              await fallbackDir.create(recursive: true);
+            final nativePath = await NativeService.getPublicDownloadsPath();
+            if (nativePath != null) {
+              final d = Directory(nativePath);
+              if (!await d.exists()) await d.create(recursive: true);
+              dir = d;
+            } else {
+              throw Exception('No native path');
             }
-            dir = fallbackDir;
           } catch (_) {
             try {
-              final mainDownloadDir = Directory('/storage/emulated/0/Download');
-              if (!await mainDownloadDir.exists()) {
-                await mainDownloadDir.create(recursive: true);
+              final fallbackDir = Directory('/storage/emulated/0/Download/VidGrab');
+              if (!await fallbackDir.exists()) {
+                await fallbackDir.create(recursive: true);
               }
-              dir = mainDownloadDir;
+              dir = fallbackDir;
             } catch (_) {
-              dir = (await getExternalStorageDirectory()) ?? (await getApplicationDocumentsDirectory());
+              try {
+                final mainDownloadDir = Directory('/storage/emulated/0/Download');
+                if (!await mainDownloadDir.exists()) {
+                  await mainDownloadDir.create(recursive: true);
+                }
+                dir = mainDownloadDir;
+              } catch (_) {
+                dir = (await getExternalStorageDirectory()) ?? (await getApplicationDocumentsDirectory());
+              }
             }
           }
         }

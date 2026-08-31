@@ -77,7 +77,7 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
     final thumbnail = _info!['thumbnail'] ?? '';
 
     final downloadProvider = Provider.of<DownloadProvider>(context, listen: false);
-    await downloadProvider.startDownload(
+    downloadProvider.startDownload(
       title: title,
       videoUrl: widget.rawUrl,
       quality: selectedQuality,
@@ -85,18 +85,19 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
       thumbnail: thumbnail,
     );
 
-    if (!mounted) return;
-    Navigator.pop(context);
-
     if (widget.onDownloadStarted != null) {
       widget.onDownloadStarted!();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Download started in background!'),
-          backgroundColor: Color(0xFFFACC15),
-        ),
-      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('VidGrab: Video download started in background!'),
+            backgroundColor: Color(0xFFFACC15),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
