@@ -58,7 +58,7 @@
             android:name=".ShareActivity"
             android:exported="true"
             android:theme="@style/TransparentTheme"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTop"
             android:taskAffinity=""
             android:excludeFromRecents="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -69,11 +69,21 @@
                 android:resource="@style/TransparentTheme"
                 />
 
-            <!-- Android Share Sheet Receiver Intent (FB, IG, YT, TikTok share button) -->
+            <!-- Android Share Sheet Receiver Intent (FB, IG, YT, TikTok, Browser share button) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
 

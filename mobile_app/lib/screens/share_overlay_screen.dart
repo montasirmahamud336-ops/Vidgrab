@@ -24,15 +24,27 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
   }
 
   void _initSharingIntent() async {
-    // 1. Direct native Intent EXTRA_TEXT capture (instant 0ms)
-    try {
-      final nativeText = await NativeService.getSharedText();
-      if (nativeText != null && nativeText.isNotEmpty) {
-        _extractUrl(nativeText);
+    // 1. Live Native Intent Listener (from Kotlin onNewIntent / onCreate)
+    NativeService.setSharedIntentListener((text) {
+      if (text.isNotEmpty) {
+        _extractUrl(text);
       }
-    } catch (_) {}
+    });
 
-    // 2. Initial shared media / text files
+    // 2. Direct native Intent EXTRA_TEXT / ClipData capture with instant polling
+    for (int delayMs in [0, 60, 150, 300, 600]) {
+      if (delayMs > 0) await Future.delayed(Duration(milliseconds: delayMs));
+      if (_sharedUrl != null) break;
+      try {
+        final nativeText = await NativeService.getSharedText();
+        if (nativeText != null && nativeText.isNotEmpty) {
+          _extractUrl(nativeText);
+          if (_sharedUrl != null) break;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Initial shared media / text files
     try {
       final initialMedia = await ReceiveSharingIntent.getInitialMedia();
       for (final file in initialMedia) {
@@ -44,7 +56,7 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
       ReceiveSharingIntent.reset();
     } catch (_) {}
 
-    // 3. Stream listeners for dynamic sharing
+    // 4. Stream listeners for dynamic sharing
     try {
       _mediaSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
         for (final file in value) {

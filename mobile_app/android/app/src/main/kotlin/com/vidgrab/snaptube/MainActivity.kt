@@ -12,6 +12,34 @@ import java.io.File
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.vidgrab.snaptube/native"
 
+    private fun extractSharedText(targetIntent: Intent?): String {
+        if (targetIntent == null) return ""
+        val extraText = targetIntent.getStringExtra(Intent.EXTRA_TEXT)
+        if (!extraText.isNullOrBlank()) return extraText
+
+        val csExtra = targetIntent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+        if (!csExtra.isNullOrBlank()) return csExtra.toString()
+
+        val clipData = targetIntent.clipData
+        if (clipData != null && clipData.itemCount > 0) {
+            for (i in 0 until clipData.itemCount) {
+                val item = clipData.getItemAt(i)
+                val text = item.text?.toString()
+                if (!text.isNullOrBlank()) return text
+                val uri = item.uri?.toString()
+                if (!uri.isNullOrBlank()) return uri
+            }
+        }
+
+        val dataUri = targetIntent.dataString
+        if (!dataUri.isNullOrBlank()) return dataUri
+
+        val subject = targetIntent.getStringExtra(Intent.EXTRA_SUBJECT)
+        if (!subject.isNullOrBlank()) return subject
+
+        return ""
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -94,7 +122,7 @@ class MainActivity: FlutterActivity() {
                     }
                 }
                 "getSharedText" -> {
-                    val shared = intent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+                    val shared = extractSharedText(intent)
                     result.success(shared)
                 }
                 "finishActivity" -> {
@@ -106,3 +134,4 @@ class MainActivity: FlutterActivity() {
         }
     }
 }
+

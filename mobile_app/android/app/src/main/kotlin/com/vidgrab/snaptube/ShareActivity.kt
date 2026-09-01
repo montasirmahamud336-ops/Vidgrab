@@ -13,6 +13,8 @@ import java.io.File
 
 class ShareActivity: FlutterActivity() {
     private val CHANNEL = "com.vidgrab.snaptube/native"
+    private var methodChannel: MethodChannel? = null
+    private var latestSharedText: String = ""
 
     override fun getBackgroundMode(): BackgroundMode {
         return BackgroundMode.transparent
@@ -22,10 +24,61 @@ class ShareActivity: FlutterActivity() {
         return "/share_overlay"
     }
 
+    private fun extractSharedText(targetIntent: Intent?): String {
+        if (targetIntent == null) return ""
+        
+        // 1. Extra Text (Standard)
+        val extraText = targetIntent.getStringExtra(Intent.EXTRA_TEXT)
+        if (!extraText.isNullOrBlank()) return extraText
+
+        // 2. CharSequence Extra
+        val csExtra = targetIntent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+        if (!csExtra.isNullOrBlank()) return csExtra.toString()
+
+        // 3. ClipData (Used by Android 12, 13, 14, 15 YouTube & Instagram app shares)
+        val clipData = targetIntent.clipData
+        if (clipData != null && clipData.itemCount > 0) {
+            for (i in 0 until clipData.itemCount) {
+                val item = clipData.getItemAt(i)
+                val text = item.text?.toString()
+                if (!text.isNullOrBlank()) return text
+                val uri = item.uri?.toString()
+                if (!uri.isNullOrBlank()) return uri
+            }
+        }
+
+        // 4. Data URI
+        val dataUri = targetIntent.dataString
+        if (!dataUri.isNullOrBlank()) return dataUri
+
+        // 5. Subject
+        val subject = targetIntent.getStringExtra(Intent.EXTRA_SUBJECT)
+        if (!subject.isNullOrBlank()) return subject
+
+        return ""
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val shared = extractSharedText(intent)
+        if (shared.isNotBlank()) {
+            latestSharedText = shared
+            methodChannel?.invokeMethod("onSharedIntentReceived", shared)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        // Capture initial intent on launch
+        val initialShared = extractSharedText(intent)
+        if (initialShared.isNotBlank()) {
+            latestSharedText = initialShared
+        }
+
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "openWith" -> {
                     val filePath = call.argument<String>("filePath")
@@ -104,8 +157,9 @@ class ShareActivity: FlutterActivity() {
                     }
                 }
                 "getSharedText" -> {
-                    val shared = intent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
-                    result.success(shared)
+                    val current = extractSharedText(intent)
+                    val out = if (current.isNotBlank()) current else latestSharedText
+                    result.success(out)
                 }
                 "finishActivity" -> {
                     finish()
@@ -116,4 +170,5 @@ class ShareActivity: FlutterActivity() {
         }
     }
 }
+
 

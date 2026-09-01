@@ -60,6 +60,21 @@ class NativeService {
     }
   }
 
+  static Function(String)? _onSharedIntentCallback;
+
+  /// Registers listener for live intent text sent from native Activity
+  static void setSharedIntentListener(Function(String) callback) {
+    _onSharedIntentCallback = callback;
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'onSharedIntentReceived') {
+        final text = call.arguments?.toString() ?? '';
+        if (text.isNotEmpty && _onSharedIntentCallback != null) {
+          _onSharedIntentCallback!(text);
+        }
+      }
+    });
+  }
+
   /// Closes the current activity (for transparent share overlay)
   static Future<void> finishActivity() async {
     if (!Platform.isAndroid) return;
@@ -68,6 +83,7 @@ class NativeService {
     } catch (_) {}
   }
 }
+
 
 
 
