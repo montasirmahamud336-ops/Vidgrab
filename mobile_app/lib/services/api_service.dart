@@ -179,6 +179,54 @@ class ApiService {
     }
   }
 
+  // ─── Direct On-Device Stream Resolver for YouTube (Zero VPS dependence) ───
+  static Future<String?> resolveDirectYouTubeStreamUrl(String videoUrl, String quality) async {
+    try {
+      final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(videoUrl);
+      final vidId = rawIdMatch != null ? rawIdMatch.group(1)! : '';
+      if (vidId.isEmpty) return null;
+
+      final instances = [
+        'https://inv.tux.pizza/api/v1/videos/$vidId',
+        'https://invidious.nerdvpn.de/api/v1/videos/$vidId',
+        'https://vid.puffyan.us/api/v1/videos/$vidId',
+        'https://invidious.private.coffee/api/v1/videos/$vidId',
+      ];
+
+      for (final inst in instances) {
+        try {
+          final res = await http.get(Uri.parse(inst)).timeout(const Duration(seconds: 4));
+          if (res.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(res.bodyBytes));
+            final formatStreams = data['formatStreams'] as List<dynamic>?;
+            final adaptiveFormats = data['adaptiveFormats'] as List<dynamic>?;
+
+            final isAudio = quality.startsWith('mp3') || quality.startsWith('m4a');
+            if (isAudio && adaptiveFormats != null) {
+              final audios = adaptiveFormats.where((f) => (f['type'] as String? ?? '').contains('audio')).toList();
+              if (audios.isNotEmpty) {
+                return audios.first['url'] as String?;
+              }
+            }
+
+            if (formatStreams != null && formatStreams.isNotEmpty) {
+              if (quality == '360') {
+                final match = formatStreams.firstWhere((f) => (f['qualityLabel'] as String? ?? '').contains('360'), orElse: () => formatStreams.first);
+                return match['url'] as String?;
+              } else if (quality == '720') {
+                final match = formatStreams.firstWhere((f) => (f['qualityLabel'] as String? ?? '').contains('720'), orElse: () => formatStreams.first);
+                return match['url'] as String?;
+              } else {
+                return formatStreams.first['url'] as String?;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // ─── Get download stream URL with user cookies ───
   static Future<String> getDownloadFileUrl(String videoUrl, String quality, {String? title}) async {
     await loadBaseUrl();
@@ -215,4 +263,5 @@ class ApiService {
     return {};
   }
 }
+
 

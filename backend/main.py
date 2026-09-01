@@ -1229,8 +1229,7 @@ def download_video_file(
 
             # 1. Primary: Immune Android & Mobile Web clients (bypasses Botguard completely)
             stream_attempts.append(base_cmd + [
-                "--extractor-args", "youtube:player_client=android,android_vr,mweb",
-                "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                "--extractor-args", "youtube:player_client=android,android_vr,mweb;player_skip=web,tv,ios,web_safari,web_creator",
                 "-f", "b/best/18/22", "-o", "-", clean_url
             ])
 
@@ -1238,8 +1237,7 @@ def download_video_file(
             if cookie_path and os.path.exists(cookie_path):
                 stream_attempts.append(base_cmd + [
                     "--cookies", cookie_path,
-                    "--extractor-args", "youtube:player_client=android,mweb,android_vr",
-                    "--extractor-args", "youtube:player_skip=web,tv,ios,web_safari,web_creator",
+                    "--extractor-args", "youtube:player_client=android,mweb,android_vr;player_skip=web,tv,ios,web_safari,web_creator",
                     "-f", "b/best/18/22", "-o", "-", clean_url
                 ])
 
@@ -1306,12 +1304,21 @@ def download_video_file(
                 c_opts.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
             c_opts.extend(["-o", temp_template])
 
+            extractor_args_list = []
             if att.get("use_pot"):
-                c_opts.extend(["--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"])
+                extractor_args_list.append("youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416")
+
+            yt_args = []
             if att.get("player_client"):
-                c_opts.extend(["--extractor-args", f"youtube:player_client={att['player_client']}"])
+                yt_args.append(f"player_client={att['player_client']}")
             if att.get("skip_web"):
-                c_opts.extend(["--extractor-args", "youtube:player_skip=web,web_safari"])
+                yt_args.append("player_skip=web,web_safari,tv")
+
+            if yt_args:
+                extractor_args_list.append(f"youtube:{';'.join(yt_args)}")
+
+            for ea in extractor_args_list:
+                c_opts.extend(["--extractor-args", ea])
 
             if ffmpeg_bin:
                 c_opts.extend(["-f", settings["format"], "--ffmpeg-location", ffmpeg_bin])

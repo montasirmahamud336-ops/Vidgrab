@@ -103,6 +103,10 @@ class ShareActivity: FlutterActivity() {
                         result.error("INVALID_PATH", "APK path is null", null)
                     }
                 }
+                "getSharedText" -> {
+                    val shared = intent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+                    result.success(shared)
+                }
                 "finishActivity" -> {
                     finish()
                     result.success(true)

@@ -49,6 +49,17 @@ class NativeService {
     }
   }
 
+  /// Gets shared text passed into the Activity intent
+  static Future<String?> getSharedText() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final text = await _channel.invokeMethod<String>('getSharedText');
+      return text;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Closes the current activity (for transparent share overlay)
   static Future<void> finishActivity() async {
     if (!Platform.isAndroid) return;
@@ -57,5 +68,6 @@ class NativeService {
     } catch (_) {}
   }
 }
+
 
 

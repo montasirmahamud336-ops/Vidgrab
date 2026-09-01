@@ -13,8 +13,9 @@ class ShareOverlayScreen extends StatefulWidget {
 
 class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
   String? _sharedUrl;
-  StreamSubscription? _intentSubscription;
+  StreamSubscription? _mediaSubscription;
   bool _hasParsed = false;
+
 
   @override
   void initState() {
@@ -22,31 +23,42 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
     _initSharingIntent();
   }
 
-  void _initSharingIntent() {
-    // 1. Initial shared text when activity launched from external app (YouTube, IG, TikTok, FB)
-    ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
-      for (final file in value) {
+  void _initSharingIntent() async {
+    // 1. Direct native Intent EXTRA_TEXT capture (instant 0ms)
+    try {
+      final nativeText = await NativeService.getSharedText();
+      if (nativeText != null && nativeText.isNotEmpty) {
+        _extractUrl(nativeText);
+      }
+    } catch (_) {}
+
+    // 2. Initial shared media / text files
+    try {
+      final initialMedia = await ReceiveSharingIntent.getInitialMedia();
+      for (final file in initialMedia) {
         if (file.path.isNotEmpty) {
           _extractUrl(file.path);
           break;
         }
       }
       ReceiveSharingIntent.reset();
-    });
+    } catch (_) {}
 
-    // 2. Stream listener in case intent fires while alive
-    _intentSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
-      for (final file in value) {
-        if (file.path.isNotEmpty) {
-          _extractUrl(file.path);
-          break;
+    // 3. Stream listeners for dynamic sharing
+    try {
+      _mediaSubscription = ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
+        for (final file in value) {
+          if (file.path.isNotEmpty) {
+            _extractUrl(file.path);
+            break;
+          }
         }
-      }
-    }, onError: (_) {});
+      }, onError: (_) {});
+    } catch (_) {}
   }
 
   void _extractUrl(String text) {
-    if (_hasParsed) return;
+    if (_hasParsed && _sharedUrl != null) return;
     final urlRegExp = RegExp(r'https?://[^\s]+');
     final match = urlRegExp.firstMatch(text);
     if (match != null) {
@@ -63,7 +75,7 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
 
   @override
   void dispose() {
-    _intentSubscription?.cancel();
+    _mediaSubscription?.cancel();
     super.dispose();
   }
 

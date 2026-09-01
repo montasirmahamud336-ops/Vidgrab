@@ -348,8 +348,8 @@ class DownloadProvider extends ChangeNotifier {
         try {
           final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(item.videoUrl);
           final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : item.videoUrl.trim();
-          final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 15));
-          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 15));
+          final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 12));
+          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 12));
 
           StreamInfo? streamInfo;
           final isAudioRequest = item.ext == 'mp3' || item.ext == 'm4a' || item.quality.startsWith('mp3') || item.quality.startsWith('m4a');
@@ -399,17 +399,48 @@ class DownloadProvider extends ChangeNotifier {
 
             await sink.close();
             downloadedDirectly = true;
-          } else {
-            throw Exception('No stream available for requested quality');
           }
-        } catch (e) {
-          // If on-device YouTube fails, only fallback to VPS if user has connected cookies
-          final userCookies = await ApiService.getUserCookiesForUrl(item.videoUrl);
-          if (userCookies == null) {
-            throw Exception('YouTube download failed: ${e.toString()}');
-          }
+        } catch (_) {
+          // If YoutubeExplode fails, proceed to on-device direct resolver
         } finally {
           yt.close();
+        }
+
+        // Secondary On-Device Strategy: Direct Mobile Network Stream Resolver
+        if (!downloadedDirectly) {
+          try {
+            final directStreamUrl = await ApiService.resolveDirectYouTubeStreamUrl(item.videoUrl, item.quality);
+            if (directStreamUrl != null && directStreamUrl.isNotEmpty) {
+              final client = http.Client();
+              final response = await client.send(http.Request('GET', Uri.parse(directStreamUrl)));
+              if (response.statusCode == 200) {
+                item.totalBytes = response.contentLength ?? 0;
+                int received = 0;
+                final sink = file.openWrite();
+                await response.stream.forEach((chunk) {
+                  received += chunk.length;
+                  sink.add(chunk);
+
+                  item.bytesDownloaded = received;
+                  if (item.totalBytes > 0) {
+                    item.progress = (received / item.totalBytes).clamp(0.0, 1.0);
+                  }
+                  notifyListeners();
+
+                  final now = DateTime.now().millisecondsSinceEpoch;
+                  final currentPct = (item.progress * 100).toInt();
+                  if (now - lastNotifTime > 500 || currentPct >= lastNotifPct + 3) {
+                    lastNotifTime = now;
+                    lastNotifPct = currentPct;
+                    _updateProgressNotification(item);
+                  }
+                });
+
+                await sink.close();
+                downloadedDirectly = true;
+              }
+            }
+          } catch (_) {}
         }
       }
 
