@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/native_service.dart';
 import '../services/update_service.dart';
 import '../widgets/download_bottom_sheet.dart';
 import '../widgets/update_dialog.dart';
@@ -20,6 +21,33 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkForUpdates();
+    _checkSharedIntent();
+  }
+
+  void _checkSharedIntent() async {
+    NativeService.setSharedIntentListener((text) {
+      if (text.isNotEmpty && mounted) {
+        _extractAndHandleUrl(text);
+      }
+    });
+
+    try {
+      final text = await NativeService.getSharedText();
+      if (text != null && text.isNotEmpty && mounted) {
+        _extractAndHandleUrl(text);
+      }
+    } catch (_) {}
+  }
+
+  void _extractAndHandleUrl(String text) {
+    final urlRegExp = RegExp(r'https?://[^\s<>"]+');
+    final match = urlRegExp.firstMatch(text);
+    if (match != null) {
+      String clean = match.group(0)!;
+      clean = clean.replaceAll(RegExp(r'[\)\]\},;."\x27]+$'), '');
+      _urlController.text = clean;
+      _handleSearch(clean);
+    }
   }
 
   void _checkForUpdates() async {

@@ -14,28 +14,69 @@ class MainActivity: FlutterActivity() {
 
     private fun extractSharedText(targetIntent: Intent?): String {
         if (targetIntent == null) return ""
-        val extraText = targetIntent.getStringExtra(Intent.EXTRA_TEXT)
-        if (!extraText.isNullOrBlank()) return extraText
 
-        val csExtra = targetIntent.getCharSequenceExtra(Intent.EXTRA_TEXT)
-        if (!csExtra.isNullOrBlank()) return csExtra.toString()
+        val urlRegex = Regex("""https?://[^\s<>"]+""")
 
-        val clipData = targetIntent.clipData
-        if (clipData != null && clipData.itemCount > 0) {
-            for (i in 0 until clipData.itemCount) {
-                val item = clipData.getItemAt(i)
-                val text = item.text?.toString()
-                if (!text.isNullOrBlank()) return text
-                val uri = item.uri?.toString()
-                if (!uri.isNullOrBlank()) return uri
-            }
+        fun findUrl(input: CharSequence?): String? {
+            if (input.isNullOrBlank()) return null
+            val match = urlRegex.find(input)
+            return match?.value ?: (if (input.toString().trim().startsWith("http")) input.toString().trim() else null)
         }
 
-        val dataUri = targetIntent.dataString
-        if (!dataUri.isNullOrBlank()) return dataUri
+        // 1. Extra Text (Standard)
+        try {
+            val extraText = targetIntent.getStringExtra(Intent.EXTRA_TEXT)
+            val found = findUrl(extraText)
+            if (!found.isNullOrBlank()) return found
+        } catch (_: Exception) {}
 
-        val subject = targetIntent.getStringExtra(Intent.EXTRA_SUBJECT)
-        if (!subject.isNullOrBlank()) return subject
+        // 2. CharSequence Extra
+        try {
+            val csExtra = targetIntent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            val found = findUrl(csExtra)
+            if (!found.isNullOrBlank()) return found
+        } catch (_: Exception) {}
+
+        // 3. ClipData (Used by Android 12, 13, 14, 15 YouTube & Instagram app shares)
+        try {
+            val clipData = targetIntent.clipData
+            if (clipData != null && clipData.itemCount > 0) {
+                for (i in 0 until clipData.itemCount) {
+                    val item = clipData.getItemAt(i)
+                    val textFound = findUrl(item.text)
+                    if (!textFound.isNullOrBlank()) return textFound
+                    val uriFound = item.uri?.toString()
+                    if (!uriFound.isNullOrBlank() && uriFound.startsWith("http")) return uriFound
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Data URI
+        try {
+            val dataUri = targetIntent.dataString
+            if (!dataUri.isNullOrBlank() && dataUri.startsWith("http")) return dataUri
+        } catch (_: Exception) {}
+
+        // 5. Subject
+        try {
+            val subject = targetIntent.getStringExtra(Intent.EXTRA_SUBJECT)
+            val found = findUrl(subject)
+            if (!found.isNullOrBlank()) return found
+        } catch (_: Exception) {}
+
+        // 6. Deep search through ALL Bundle extras
+        try {
+            val extras = targetIntent.extras
+            if (extras != null) {
+                for (key in extras.keySet()) {
+                    val value = extras.get(key)
+                    if (value != null) {
+                        val found = findUrl(value.toString())
+                        if (!found.isNullOrBlank()) return found
+                    }
+                }
+            }
+        } catch (_: Exception) {}
 
         return ""
     }

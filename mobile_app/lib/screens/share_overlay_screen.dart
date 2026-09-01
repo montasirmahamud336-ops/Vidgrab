@@ -15,8 +15,6 @@ class ShareOverlayScreen extends StatefulWidget {
 class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
   String? _sharedUrl;
   StreamSubscription? _mediaSubscription;
-  bool _hasParsed = false;
-
 
   @override
   void initState() {
@@ -82,16 +80,14 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
   }
 
   void _extractUrl(String text) {
-    if (_hasParsed && _sharedUrl != null) return;
-    final urlRegExp = RegExp(r'https?://[^\s]+');
+    final urlRegExp = RegExp(r'https?://[^\s<>"]+');
     final match = urlRegExp.firstMatch(text);
     if (match != null) {
       String clean = match.group(0)!;
       clean = clean.replaceAll(RegExp(r'[\)\]\},;."\x27]+$'), '');
-      if (mounted) {
+      if (mounted && clean != _sharedUrl) {
         setState(() {
           _sharedUrl = clean;
-          _hasParsed = true;
         });
       }
     }
