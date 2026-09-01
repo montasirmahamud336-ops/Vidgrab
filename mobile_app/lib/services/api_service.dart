@@ -101,46 +101,59 @@ class ApiService {
 
     // 1. Direct On-Device YouTube Engine (100% immune to VPS datacenter blocks & bot challenges)
     if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
-      final yt = YoutubeExplode();
+      final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(videoUrl);
+      final vidId = rawIdMatch != null ? rawIdMatch.group(1)! : videoUrl.trim();
+
+      String title = 'YouTube Video';
+      String uploader = 'YouTube Creator';
+      String thumbnail = 'https://i.ytimg.com/vi/$vidId/hqdefault.jpg';
+
+      // 1. Fast Official YouTube oEmbed API (0.1s, 100% immune to bot check)
       try {
-        final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(videoUrl);
-        final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : videoUrl.trim();
-        
-        // Fast direct metadata extraction
-        final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 8));
-
-        final qualities = <Map<String, String>>[
-          {'label': 'Best Quality (HD)', 'value': 'best'},
-          {'label': '1080p Full HD', 'value': '1080'},
-          {'label': '720p HD', 'value': '720'},
-          {'label': '480p SD', 'value': '480'},
-          {'label': '360p SD', 'value': '360'},
-        ];
-
-        final audioQualities = [
-          {'label': 'MP3 (High Quality)', 'value': 'mp3_best'},
-          {'label': 'M4A (High Quality)', 'value': 'm4a_best'},
-        ];
-
-        return {
-          'is_playlist': false,
-          'title': video.title,
-          'uploader': video.author,
-          'thumbnail': video.thumbnails.highResUrl,
-          'duration': video.duration?.inSeconds,
-          'video_qualities': qualities,
-          'audio_qualities': audioQualities,
-          '_is_direct_yt': true,
-        };
-      } catch (e) {
-        // If on-device fails, only try VPS if cookies are present
-        final userCookies = await getUserCookiesForUrl(videoUrl);
-        if (userCookies == null) {
-          throw Exception('Could not extract YouTube video: ${e.toString()}');
+        final oembedUrl = 'https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=$vidId&format=json';
+        final oembedResp = await http.get(Uri.parse(oembedUrl)).timeout(const Duration(seconds: 4));
+        if (oembedResp.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(oembedResp.bodyBytes));
+          title = data['title']?.toString() ?? title;
+          uploader = data['author_name']?.toString() ?? uploader;
+          thumbnail = data['thumbnail_url']?.toString() ?? thumbnail;
         }
-      } finally {
-        yt.close();
+      } catch (_) {
+        // Fallback to YoutubeExplode metadata if oembed is unreachable
+        final yt = YoutubeExplode();
+        try {
+          final video = await yt.videos.get(vidId).timeout(const Duration(seconds: 4));
+          title = video.title;
+          uploader = video.author;
+          thumbnail = video.thumbnails.highResUrl;
+        } catch (_) {} finally {
+          yt.close();
+        }
       }
+
+      final qualities = <Map<String, String>>[
+        {'label': 'Best Quality (HD)', 'value': 'best'},
+        {'label': '1080p Full HD', 'value': '1080'},
+        {'label': '720p HD', 'value': '720'},
+        {'label': '480p SD', 'value': '480'},
+        {'label': '360p SD', 'value': '360'},
+      ];
+
+      final audioQualities = [
+        {'label': 'MP3 (High Quality)', 'value': 'mp3_best'},
+        {'label': 'M4A (High Quality)', 'value': 'm4a_best'},
+      ];
+
+      return {
+        'is_playlist': false,
+        'title': title,
+        'uploader': uploader,
+        'thumbnail': thumbnail,
+        'duration': null,
+        'video_qualities': qualities,
+        'audio_qualities': audioQualities,
+        '_is_direct_yt': true,
+      };
     }
 
     // 2. VPS Backend Engine (for Instagram, TikTok, Facebook, or fallback)

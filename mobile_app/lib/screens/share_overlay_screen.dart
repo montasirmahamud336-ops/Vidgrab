@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../services/native_service.dart';
 import '../widgets/download_bottom_sheet.dart';
@@ -67,6 +68,17 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
         }
       }, onError: (_) {});
     } catch (_) {}
+    // 5. Clipboard fallback if still empty after 700ms
+    Future.delayed(const Duration(milliseconds: 700), () async {
+      if (_sharedUrl == null && mounted) {
+        try {
+          final clip = await Clipboard.getData(Clipboard.kTextPlain);
+          if (clip?.text != null && clip!.text!.isNotEmpty) {
+            _extractUrl(clip.text!);
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   void _extractUrl(String text) {
@@ -74,10 +86,14 @@ class _ShareOverlayScreenState extends State<ShareOverlayScreen> {
     final urlRegExp = RegExp(r'https?://[^\s]+');
     final match = urlRegExp.firstMatch(text);
     if (match != null) {
-      setState(() {
-        _sharedUrl = match.group(0)!;
-        _hasParsed = true;
-      });
+      String clean = match.group(0)!;
+      clean = clean.replaceAll(RegExp(r'[\)\]\},;."\x27]+$'), '');
+      if (mounted) {
+        setState(() {
+          _sharedUrl = clean;
+          _hasParsed = true;
+        });
+      }
     }
   }
 

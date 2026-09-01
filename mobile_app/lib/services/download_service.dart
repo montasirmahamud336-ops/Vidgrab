@@ -348,13 +348,12 @@ class DownloadProvider extends ChangeNotifier {
         try {
           final rawIdMatch = RegExp(r'(?:v=|\/shorts\/|\/embed\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})').firstMatch(item.videoUrl);
           final vidParam = rawIdMatch != null ? rawIdMatch.group(1)! : item.videoUrl.trim();
-          final video = await yt.videos.get(vidParam).timeout(const Duration(seconds: 12));
-          final manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(const Duration(seconds: 12));
+          final manifest = await yt.videos.streamsClient.getManifest(vidParam).timeout(const Duration(seconds: 15));
 
           StreamInfo? streamInfo;
           final isAudioRequest = item.ext == 'mp3' || item.ext == 'm4a' || item.quality.startsWith('mp3') || item.quality.startsWith('m4a');
           if (isAudioRequest) {
-            streamInfo = manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : null;
+            streamInfo = manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : (manifest.audio.isNotEmpty ? manifest.audio.first : null);
           } else {
             // Video request: First look for muxed stream (360p or 720p)
             if (manifest.muxed.isNotEmpty) {
@@ -401,7 +400,7 @@ class DownloadProvider extends ChangeNotifier {
             downloadedDirectly = true;
           }
         } catch (_) {
-          // If YoutubeExplode fails, proceed to on-device direct resolver
+          // If primary stream fails, try secondary direct resolver
         } finally {
           yt.close();
         }
@@ -442,9 +441,14 @@ class DownloadProvider extends ChangeNotifier {
             }
           } catch (_) {}
         }
+
+        // Strictly enforce: YouTube never falls back to VPS datacenter IP
+        if (!downloadedDirectly) {
+          throw Exception('YouTube download failed on device. Please try 720p or 360p quality.');
+        }
       }
 
-      // ── 2. VPS BACKEND STREAMING (for Instagram, TikTok, Facebook or fallback) ──
+      // ── 2. VPS BACKEND STREAMING (for Instagram, TikTok, Facebook ONLY) ──
       if (!downloadedDirectly) {
         final downloadUrl = await ApiService.getDownloadFileUrl(item.videoUrl, item.quality, title: item.title);
         final client = http.Client();
