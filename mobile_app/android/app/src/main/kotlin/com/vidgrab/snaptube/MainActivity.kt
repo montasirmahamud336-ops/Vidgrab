@@ -11,6 +11,8 @@ import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.vidgrab.snaptube/native"
+    private var methodChannel: MethodChannel? = null
+    private var latestSharedText: String = ""
 
     private fun extractSharedText(targetIntent: Intent?): String {
         if (targetIntent == null) return ""
@@ -81,10 +83,26 @@ class MainActivity: FlutterActivity() {
         return ""
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val shared = extractSharedText(intent)
+        if (shared.isNotBlank()) {
+            latestSharedText = shared
+            methodChannel?.invokeMethod("onSharedIntentReceived", shared)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        val initialShared = extractSharedText(intent)
+        if (initialShared.isNotBlank()) {
+            latestSharedText = initialShared
+        }
+
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "openWith" -> {
                     val filePath = call.argument<String>("filePath")
@@ -163,8 +181,10 @@ class MainActivity: FlutterActivity() {
                     }
                 }
                 "getSharedText" -> {
-                    val shared = extractSharedText(intent)
-                    result.success(shared)
+                    val current = extractSharedText(intent)
+                    val out = if (current.isNotBlank()) current else latestSharedText
+                    latestSharedText = ""
+                    result.success(out)
                 }
                 "finishActivity" -> {
                     activity.finish()

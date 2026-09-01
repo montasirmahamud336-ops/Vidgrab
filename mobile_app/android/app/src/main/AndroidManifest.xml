@@ -22,7 +22,7 @@
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true">
 
-        <!-- Main Full App Activity (Only for opening the app directly) -->
+        <!-- Main Full App Activity (Handles direct launch, web links, and share intents) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -51,23 +51,6 @@
                 <data android:scheme="http" />
                 <data android:scheme="https" />
             </intent-filter>
-        </activity>
-
-        <!-- Transparent In-Screen Overlay Share Intent Activity -->
-        <activity
-            android:name=".ShareActivity"
-            android:exported="true"
-            android:theme="@style/TransparentTheme"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
-            android:excludeFromRecents="true"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:windowSoftInputMode="adjustResize">
-
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/TransparentTheme"
-                />
 
             <!-- Android Share Sheet Receiver Intent (FB, IG, YT, TikTok, Browser share button) -->
             <intent-filter>

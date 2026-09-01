@@ -16,6 +16,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isLoading = false;
+  bool _isSheetOpen = false;
+  String? _lastHandledUrl;
 
   @override
   void initState() {
@@ -25,18 +27,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _checkSharedIntent() async {
+    // 1. Live listener for intent events from MainActivity
     NativeService.setSharedIntentListener((text) {
       if (text.isNotEmpty && mounted) {
         _extractAndHandleUrl(text);
       }
     });
 
-    try {
-      final text = await NativeService.getSharedText();
-      if (text != null && text.isNotEmpty && mounted) {
-        _extractAndHandleUrl(text);
-      }
-    } catch (_) {}
+    // 2. Poll initial intent at launch (0ms, 150ms, 400ms)
+    for (int delay in [0, 150, 400]) {
+      if (delay > 0) await Future.delayed(Duration(milliseconds: delay));
+      if (!mounted) break;
+      try {
+        final text = await NativeService.getSharedText();
+        if (text != null && text.isNotEmpty) {
+          _extractAndHandleUrl(text);
+          break;
+        }
+      } catch (_) {}
+    }
   }
 
   void _extractAndHandleUrl(String text) {
@@ -45,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (match != null) {
       String clean = match.group(0)!;
       clean = clean.replaceAll(RegExp(r'[\)\]\},;."\x27]+$'), '');
+      if (clean == _lastHandledUrl && _isSheetOpen) return;
+      _lastHandledUrl = clean;
       _urlController.text = clean;
       _handleSearch(clean);
     }
@@ -62,6 +73,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleSearch(String url) async {
     final cleanUrl = url.trim();
     if (cleanUrl.isEmpty) return;
+    if (_isLoading) return;
+
     setState(() => _isLoading = true);
 
     try {
@@ -69,12 +82,21 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoading = false);
 
       if (!mounted) return;
-      showModalBottomSheet(
+
+      // Close previous sheet if already open to guarantee exactly ONE bar
+      if (_isSheetOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isSheetOpen = false;
+      }
+
+      _isSheetOpen = true;
+      await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => DownloadBottomSheet(videoInfo: info, rawUrl: cleanUrl),
       );
+      _isSheetOpen = false;
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;

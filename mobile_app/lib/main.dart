@@ -4,7 +4,6 @@ import 'services/download_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/share_overlay_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +34,7 @@ class SnapTubeApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (_) => const MainNavigationWrapper(),
-        '/share_overlay': (_) => const ShareOverlayScreen(),
+        '/share_overlay': (_) => const MainNavigationWrapper(),
       },
     );
   }
